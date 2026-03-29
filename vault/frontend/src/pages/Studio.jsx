@@ -126,20 +126,20 @@ export default function Studio() {
   useEffect(() => {
     const t = beatVocalBalance / 100;
     const beatVol = 0.26 + (1 - t) * 0.74;
-    engine.setBeatVolume(beatVol);
-  }, [beatVocalBalance, engine]);
+    engineRef.current.setBeatVolume(beatVol);
+  }, [beatVocalBalance]);
 
   useEffect(() => {
     let raf;
     const tick = () => {
-      const target = engine.meter;
+      const target = engineRef.current.meter;
       smoothMeterRef.current += (target - smoothMeterRef.current) * 0.18;
       setMeterSmooth(smoothMeterRef.current);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [engine]);
+  }, []);
 
   useEffect(() => {
     if (tracks.length && !selectedTrackId) {
@@ -162,15 +162,16 @@ export default function Studio() {
   useEffect(() => {
     const iv = setInterval(() => {
       try {
-        sessionStorage.setItem('rapfactory_mic_peak', String(engine.meter));
-        const ms = engine.estimateMonitorLatencyMs();
+        const e = engineRef.current;
+        sessionStorage.setItem('rapfactory_mic_peak', String(e.meter));
+        const ms = e.estimateMonitorLatencyMs();
         if (ms != null) sessionStorage.setItem('rapfactory_latency_ms', String(ms));
       } catch {
         /* */
       }
     }, 2000);
     return () => clearInterval(iv);
-  }, [engine]);
+  }, []);
 
   useEffect(() => {
     setStudioTab('record');
