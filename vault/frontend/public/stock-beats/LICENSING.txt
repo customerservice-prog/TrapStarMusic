@@ -1,0 +1,66 @@
+TrapStarMusic — stock beat pack
+================================
+
+Each file 01.mp3 … 50.mp3 is a high-quality preview MP3 from Freesound.org,
+downloaded from the CDN URL for that sound. All listed sounds were selected
+from Freesound search results filtered to the license:
+
+  Creative Commons 0 (CC0) — public domain dedication
+
+You may use, modify, and redistribute these clips without attribution (though
+crediting Freesound artists is still appreciated). Confirm the license on each
+sound’s page if you replace files or add new ones.
+
+Sound page URLs (same order as filenames):
+https://freesound.org/s/829259/
+https://freesound.org/s/720248/
+https://freesound.org/s/399748/
+https://freesound.org/s/582465/
+https://freesound.org/s/844463/
+https://freesound.org/s/816348/
+https://freesound.org/s/422434/
+https://freesound.org/s/807831/
+https://freesound.org/s/807202/
+https://freesound.org/s/528221/
+https://freesound.org/s/524313/
+https://freesound.org/s/518628/
+https://freesound.org/s/487544/
+https://freesound.org/s/455645/
+https://freesound.org/s/721440/
+https://freesound.org/s/747451/
+https://freesound.org/s/742895/
+https://freesound.org/s/741959/
+https://freesound.org/s/814324/
+https://freesound.org/s/813669/
+https://freesound.org/s/841784/
+https://freesound.org/s/593247/
+https://freesound.org/s/635304/
+https://freesound.org/s/353608/
+https://freesound.org/s/352409/
+https://freesound.org/s/382276/
+https://freesound.org/s/416061/
+https://freesound.org/s/431187/
+https://freesound.org/s/434898/
+https://freesound.org/s/365187/
+https://freesound.org/s/467521/
+https://freesound.org/s/800887/
+https://freesound.org/s/799204/
+https://freesound.org/s/687957/
+https://freesound.org/s/166029/
+https://freesound.org/s/790598/
+https://freesound.org/s/384581/
+https://freesound.org/s/400996/
+https://freesound.org/s/416989/
+https://freesound.org/s/416988/
+https://freesound.org/s/254989/
+https://freesound.org/s/703568/
+https://freesound.org/s/516736/
+https://freesound.org/s/517740/
+https://freesound.org/s/404913/
+https://freesound.org/s/324406/
+https://freesound.org/s/793393/
+https://freesound.org/s/833548/
+https://freesound.org/s/521145/
+https://freesound.org/s/482123/
+
+Regenerate or refresh: node scripts/download-stock-beats.mjs

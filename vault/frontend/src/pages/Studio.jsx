@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useStore } from '../hooks/useStore.jsx';
 import { useAudioEngine } from '../hooks/useAudioEngine.js';
@@ -18,6 +18,7 @@ import StudioSmartEngine from '../components/StudioSmartEngine.jsx';
 import StudioMixerStrip from '../components/StudioMixerStrip.jsx';
 import MidiPianoRollModal from '../components/MidiPianoRollModal.jsx';
 import MicSourcePicker from '../components/MicSourcePicker.jsx';
+import StockBeatsPicker from '../components/StockBeatsPicker.jsx';
 import { parseClips, defaultAudioClip, defaultMidiClip, clipsToJson } from '../lib/trackClips.js';
 
 function useNarrowWaveform() {
@@ -79,7 +80,9 @@ export default function Studio() {
   } = useStore();
 
   const engine = useAudioEngine();
-  const { initMic } = engine;
+  const { initMic, loadBeatFromUrl, playBeat } = engine;
+  const engineRef = useRef(engine);
+  engineRef.current = engine;
   const [monitorVol, setMonitorVol] = useState(0.85);
   const [beatVocalBalance, setBeatVocalBalance] = useState(48);
   const [punchMode, setPunchMode] = useState(false);
@@ -103,6 +106,8 @@ export default function Studio() {
   const recordStartRef = useRef(0);
   const recTimerRef = useRef(null);
   const beatTimeFnRef = useRef(() => 0);
+  /** After stock-beat upload, play once `loadBeatFromUrl` in the effect below finishes. */
+  const stockBeatAutoplayRef = useRef(false);
   const smoothMeterRef = useRef(0);
   const [meterSmooth, setMeterSmooth] = useState(0);
   beatTimeFnRef.current = () => engine.getBeatTime();
@@ -113,6 +118,10 @@ export default function Studio() {
   );
 
   const narrowWave = useNarrowWaveform();
+
+  const setStockBeatAutoplayArm = useCallback((v) => {
+    stockBeatAutoplayRef.current = !!v;
+  }, []);
 
   useEffect(() => {
     const t = beatVocalBalance / 100;
@@ -139,8 +148,8 @@ export default function Studio() {
   }, [tracks, selectedTrackId]);
 
   useEffect(() => {
-    engine.setMonitorGain(monitorVol);
-  }, [monitorVol, engine]);
+    engineRef.current.setMonitorGain(monitorVol);
+  }, [monitorVol]);
 
   useEffect(() => {
     try {
@@ -250,15 +259,25 @@ export default function Studio() {
   }, [id, snapshot]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       if (!session?.beat_filename) return;
       try {
-        await engine.loadBeatFromUrl(api.beatFileUrl(session.id));
+        await loadBeatFromUrl(api.beatFileUrl(session.id));
+        if (cancelled) return;
+        if (stockBeatAutoplayRef.current) {
+          stockBeatAutoplayRef.current = false;
+          await playBeat(0);
+        }
       } catch (e) {
+        stockBeatAutoplayRef.current = false;
         notify(e?.message || 'Could not load your beat — try another file or re-upload.', 'warn');
       }
     })();
-  }, [session?.beat_filename, session?.id, engine, notify]);
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.beat_filename, session?.beat_uploaded_at, session?.id, loadBeatFromUrl, playBeat, notify]);
 
   useEffect(() => {
     if (session?.punch_in_start != null && session?.punch_in_end != null) {
@@ -582,6 +601,15 @@ export default function Studio() {
                 </div>
               )}
             </header>
+
+            <StockBeatsPicker
+              sessionId={id}
+              uploadBeatApi={uploadBeatApi}
+              patchSession={patchSession}
+              setStockBeatAutoplayArm={setStockBeatAutoplayArm}
+              notify={notify}
+              disabled={!session || processing}
+            />
 
             <div className="rf-song-structure glass-panel" aria-label="Song structure reference">
               <span className="rf-song-structure__label">Song map</span>
