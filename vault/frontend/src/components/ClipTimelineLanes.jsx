@@ -120,16 +120,16 @@ export default function ClipTimelineLanes({
     [tracks, saveClips, dur]
   );
 
-  const vault = variant === 'vault';
-  const laneColors = vault ? LAYER_HEX : TYPE_COLOR;
+  const rf = variant === 'rf';
+  const laneColors = rf ? LAYER_HEX : TYPE_COLOR;
 
   return (
-    <div className={`clip-timeline-outer${vault ? ' clip-timeline-outer--vault' : ''}`}>
+    <div className={`clip-timeline-outer${rf ? ' clip-timeline-outer--rf' : ''}`}>
       <div className="clip-timeline-scroll" ref={scrollRef}>
         <div className="clip-timeline-inner" style={{ width: timelineWidth, minWidth: '100%' }}>
           <div style={{ width: timelineWidth }}>
             <ArrangementRuler
-              variant={vault ? 'vault' : 'default'}
+              variant={rf ? 'rf' : 'default'}
               duration={dur}
               bpm={bpm}
               currentTime={currentTime}
@@ -139,11 +139,11 @@ export default function ClipTimelineLanes({
             />
           </div>
 
-          <div className={`clip-timeline-beat-lane${vault ? ' clip-timeline-beat-lane--vault' : ''}`} style={{ width: timelineWidth }}>
+          <div className={`clip-timeline-beat-lane${rf ? ' clip-timeline-beat-lane--rf' : ''}`} style={{ width: timelineWidth }}>
             <WaveformDisplay
-              className={`waveform-timeline-embed${vault ? ' waveform-vault-beat' : ' waveform-daw-beat'}`}
-              variant={vault ? 'vault' : 'default'}
-              accent={vault ? '#c9a84c' : '#4ecdc4'}
+              className={`waveform-timeline-embed${rf ? ' waveform-rf-beat' : ' waveform-daw-beat'}`}
+              variant={rf ? 'rf' : 'default'}
+              accent={rf ? '#c9a84c' : '#4ecdc4'}
               audioBuffer={audioBuffer}
               currentTime={currentTime}
               duration={dur}
@@ -165,17 +165,17 @@ export default function ClipTimelineLanes({
             return (
               <div
                 key={track.id}
-                className={`clip-timeline-lane ${selectedTrackId === track.id ? 'is-selected' : ''}${vault ? ' clip-timeline-lane--vault' : ''}`}
+                className={`clip-timeline-lane ${selectedTrackId === track.id ? 'is-selected' : ''}${rf ? ' clip-timeline-lane--rf' : ''}`}
                 style={{ width: timelineWidth, '--lane-c': color }}
               >
-                {!vault && <div className="clip-timeline-lane__grid" />}
+                {!rf && <div className="clip-timeline-lane__grid" />}
                 {clips.map((clip) => {
                   const left = (clip.start / dur) * 100;
                   const w = (clip.duration / dur) * 100;
                   return (
                     <div
                       key={clip.id}
-                      className={`clip-block ${clip.kind === 'midi' ? 'clip-block--midi' : ''}${vault ? ' clip-block--vault' : ''}`}
+                      className={`clip-block ${clip.kind === 'midi' ? 'clip-block--midi' : ''}${rf ? ' clip-block--rf' : ''}`}
                       style={{ left: `${left}%`, width: `${w}%` }}
                       onPointerDown={(e) => {
                         if (e.target.closest('.clip-block__handle')) return;
@@ -216,7 +216,7 @@ export default function ClipTimelineLanes({
                     + MIDI clip
                   </button>
                 )}
-                <span className={`clip-timeline-playhead${vault ? ' clip-timeline-playhead--vault' : ''}`} style={{ left: `${playPct}%` }} />
+                <span className={`clip-timeline-playhead${rf ? ' clip-timeline-playhead--rf' : ''}`} style={{ left: `${playPct}%` }} />
               </div>
             );
           })}

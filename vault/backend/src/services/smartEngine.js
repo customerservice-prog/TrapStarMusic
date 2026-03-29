@@ -6,6 +6,46 @@ function clamp(n, a, b) {
   return Math.max(a, Math.min(b, n));
 }
 
+/** phone = built-in / AirPods; budget = cheap USB or laptop mic; studio = treated as cleaner source */
+export function normalizeInputSource(raw) {
+  const s = String(raw || '').trim().toLowerCase();
+  if (s === 'phone' || s === 'budget' || s === 'studio') return s;
+  return null;
+}
+
+/**
+ * Push the chain toward “expensive session” polish when the source is thin or noisy.
+ * Does not replace a good performance — it gives the model more cleanup, presence, and level.
+ */
+function applyInputSourceBias(vars, inputSource) {
+  const src = normalizeInputSource(inputSource);
+  if (!src || src === 'studio') return vars;
+  let { gate, eqCarve, deess, comp, sat, tune, air, verb, width, limit } = vars;
+  if (src === 'phone') {
+    gate = clamp(gate + 0.12, 0, 1);
+    eqCarve = clamp(eqCarve + 0.1, 0, 1);
+    deess = clamp(deess + 0.14, 0, 1);
+    comp = clamp(comp + 0.08, 0, 1);
+    sat = clamp(sat + 0.06, 0, 1);
+    tune = clamp(tune + 0.08, 0, 1);
+    air = clamp(air + 0.1, 0, 1);
+    verb = clamp(verb - 0.06, 0, 1);
+    width = clamp(width - 0.04, 0, 1);
+    limit = clamp(limit + 0.05, 0, 1);
+  } else {
+    gate = clamp(gate + 0.06, 0, 1);
+    eqCarve = clamp(eqCarve + 0.06, 0, 1);
+    deess = clamp(deess + 0.08, 0, 1);
+    comp = clamp(comp + 0.05, 0, 1);
+    sat = clamp(sat + 0.04, 0, 1);
+    tune = clamp(tune + 0.04, 0, 1);
+    air = clamp(air + 0.06, 0, 1);
+    verb = clamp(verb - 0.03, 0, 1);
+    limit = clamp(limit + 0.03, 0, 1);
+  }
+  return { gate, eqCarve, deess, comp, sat, tune, air, verb, width, limit };
+}
+
 export function analyzeBeatFromMeta({ bpm, genre, name, beat_label } = {}) {
   const g = (genre || '').toLowerCase();
   const n = ((name || '') + ' ' + (beat_label || '')).toLowerCase();
@@ -48,8 +88,9 @@ export function classifyVocal({ energyRms, peakDb }) {
  * - Melodic / softer delivery: smoother tuning bias, more air and reverb from profile.
  * - Dark beats: pull brightness (air) back so vocals don’t fight the mood.
  * - Busy / crowded mids: stronger de-ess and EQ carve (higher processor engagement on EQ slot).
+ * - inputSource phone/budget: extra cleanup, presence, and level — “session finish” from rough captures.
  */
-export function buildChain({ beatAnalysis, vocalClass, voiceProfile, trackRole }) {
+export function buildChain({ beatAnalysis, vocalClass, voiceProfile, trackRole, inputSource } = {}) {
   const ba = beatAnalysis || {};
   const vp = voiceProfile || {};
   const vc = vocalClass || { energy: 0.1, peak: -14 };
@@ -148,20 +189,126 @@ export function buildChain({ beatAnalysis, vocalClass, voiceProfile, trackRole }
     air = clamp(air + 0.05, 0, 1);
   }
 
+  const b = applyInputSourceBias(
+    { gate, eqCarve, deess, comp, sat, tune, air, verb, width, limit },
+    inputSource
+  );
+  gate = b.gate;
+  eqCarve = b.eqCarve;
+  deess = b.deess;
+  comp = b.comp;
+  sat = b.sat;
+  tune = b.tune;
+  air = b.air;
+  verb = b.verb;
+  width = b.width;
+  limit = b.limit;
+
+  const toneNum = clamp(0.42 + sat * 0.2, 0, 1);
+  const comp2 = clamp(comp * 0.82 + (isMain ? 0.06 : 0.05), 0, 1);
+  const delaySend = clamp(
+    verb * (isAdlib ? 0.58 : isDouble ? 0.38 : 0.46) + (melodicDelivery ? 0.07 : 0.03),
+    0,
+    1
+  );
+
+  const vocalChain = [
+    { id: 'tune', name: 'Pitch / tune assist', value: clamp(tune, 0, 1) },
+    { id: 'gate', name: 'Noise cleanup (gate)', value: clamp(gate, 0, 1) },
+    { id: 'eq', name: 'Subtractive mud cut', value: clamp(eqCarve, 0, 1) },
+    { id: 'deess', name: 'De-esser', value: clamp(deess, 0, 1) },
+    { id: 'comp1', name: 'Compression (peaks)', value: clamp(comp, 0, 1) },
+    { id: 'comp2', name: 'Compression (glue)', value: clamp(comp2, 0, 1) },
+    { id: 'air', name: 'Additive air / shimmer', value: clamp(air, 0, 1) },
+    { id: 'sat', name: 'Saturation / grit', value: clamp(sat, 0, 1) },
+    { id: 'verb', name: 'Reverb send', value: clamp(verb, 0, 1) },
+    { id: 'delay', name: 'Delay send', value: clamp(delaySend, 0, 1) },
+    { id: 'width', name: 'Stereo width', value: clamp(width, 0, 1) },
+    { id: 'limit', name: 'Vocal bus into master', value: clamp(limit, 0, 1) },
+  ];
+
+  const masteringLane = [
+    {
+      id: 'mstr_tone',
+      name: 'Master tonal balance',
+      value: clamp(0.38 + toneNum * 0.42 + limit * 0.2, 0, 1),
+    },
+    {
+      id: 'mstr_sculpt',
+      name: 'Master EQ sculpt',
+      value: clamp(eqCarve * 0.35 + limit * 0.5 + deess * 0.15, 0, 1),
+    },
+    {
+      id: 'mstr_glue',
+      name: 'Master bus compression',
+      value: clamp(comp * 0.45 + comp2 * 0.35 + limit * 0.18, 0, 1),
+    },
+    {
+      id: 'mstr_ss',
+      name: 'Master sibilance tilt',
+      value: clamp(deess * 0.65 + air * 0.25, 0, 1),
+    },
+    {
+      id: 'mstr_exc',
+      name: 'Master presence lift',
+      value: clamp(air * 0.45 + width * 0.35 + limit * 0.18, 0, 1),
+    },
+    {
+      id: 'mstr_space',
+      name: 'Master depth / room glue',
+      value: clamp(verb * 0.38 + delaySend * 0.38 + limit * 0.22, 0, 1),
+    },
+    {
+      id: 'mstr_warm',
+      name: 'Master warmth (tape)',
+      value: clamp(sat * 0.7 + limit * 0.22, 0, 1),
+    },
+    {
+      id: 'mstr_ceiling',
+      name: 'Master limiter / ceiling',
+      value: clamp(limit * 0.97 + 0.03, 0, 1),
+    },
+  ];
+
+  const processors = [...vocalChain, ...masteringLane];
+
+  const studio_roles = [
+    {
+      id: 'producer',
+      title: 'Producer',
+      blurb: 'Locks the overall vocal attitude to the beat, arrangement density, and your vibe.',
+      related_ids: ['eq', 'verb', 'width', 'mstr_tone', 'mstr_space'],
+    },
+    {
+      id: 'recording_engineer',
+      title: 'Recording engineer',
+      blurb: 'Optimizes capture cleanup for your mic source (phone, USB, or studio).',
+      related_ids: ['gate', 'eq', 'deess'],
+    },
+    {
+      id: 'vocal_producer',
+      title: 'Vocal producer',
+      blurb: 'Shapes pitch character, presence, and how forward the vocal feels.',
+      related_ids: ['tune', 'air', 'sat', 'delay'],
+    },
+    {
+      id: 'mixing_engineer',
+      title: 'Mixing engineer',
+      blurb: 'Balances dynamics, tone, and spatial sends so the vocal sits in the pocket.',
+      related_ids: ['comp1', 'comp2', 'air', 'sat', 'verb', 'delay', 'width', 'limit'],
+    },
+    {
+      id: 'mastering_engineer',
+      title: 'Mastering engineer',
+      blurb: 'Final polish so playback translates on speakers, headphones, and car systems.',
+      related_ids: masteringLane.map((p) => p.id),
+    },
+  ];
+
   return {
-    processors: [
-      { id: 'gate', name: 'Smart Gate', value: clamp(gate, 0, 1) },
-      { id: 'eq', name: 'Tone EQ', value: clamp(eqCarve, 0, 1) },
-      { id: 'deess', name: 'De-Ess', value: clamp(deess, 0, 1) },
-      { id: 'comp1', name: 'Punch Comp', value: clamp(comp, 0, 1) },
-      { id: 'sat', name: 'Trap Saturation', value: clamp(sat, 0, 1) },
-      { id: 'tune', name: 'Tune Assist', value: clamp(tune, 0, 1) },
-      { id: 'air', name: 'Air & Presence', value: clamp(air, 0, 1) },
-      { id: 'verb', name: 'Space', value: clamp(verb, 0, 1) },
-      { id: 'width', name: 'Stereo Width', value: clamp(width, 0, 1) },
-      { id: 'limit', name: 'Final Level', value: clamp(limit, 0, 1) },
-    ],
-    tone: clamp(0.42 + sat * 0.2, 0, 1),
+    processors,
+    tone: toneNum,
+    studio_roles,
   };
 }
 
@@ -192,6 +339,7 @@ export function safeBuildChain(args) {
       vocalClass: { layer: 'main', energy: 0.1, peak: -14 },
       voiceProfile: args?.voiceProfile || {},
       trackRole: 'main',
+      inputSource: args?.inputSource,
     });
   }
 }
@@ -223,7 +371,8 @@ export function gradeTake({ energyRms, peakDb, timingScore }) {
   if (quiet) {
     return {
       grade: 'Too quiet',
-      detail: 'Move closer or sing louder so Rap Factory has enough level to work with.',
+      detail:
+        'Move closer or project louder — especially on a phone or laptop mic, the app needs healthy level to polish the take.',
     };
   }
   if (t < 0.5) {
@@ -273,11 +422,25 @@ export function applyVibeToChain(baseChain, vibe) {
   const mult = (key, factor = 0.15) => 1 + ((v[key] ?? 50) - 50) / 50 * factor;
   const processors = baseChain.processors.map((p) => {
     let value = p.value;
-    if (p.id === 'verb' || p.id === 'air') value *= mult('space', 0.2);
-    if (p.id === 'tune') value *= mult('shine', 0.18);
-    if (p.id === 'comp1' || p.id === 'limit') value *= mult('punch', 0.12);
-    if (p.id === 'width') value *= mult('width', 0.2);
-    if (p.id === 'sat') value *= mult('grit', 0.15);
+    const isMaster = String(p.id).startsWith('mstr_');
+    if (p.id === 'verb' || p.id === 'air' || p.id === 'delay' || p.id === 'mstr_space' || p.id === 'mstr_exc') {
+      value *= mult('space', 0.18);
+    }
+    if (p.id === 'tune' || p.id === 'mstr_tone') value *= mult('shine', 0.16);
+    if (
+      p.id === 'comp1' ||
+      p.id === 'comp2' ||
+      p.id === 'limit' ||
+      p.id === 'mstr_glue' ||
+      p.id === 'mstr_ceiling'
+    ) {
+      value *= mult('punch', 0.1);
+    }
+    if (p.id === 'width' || p.id === 'mstr_exc') value *= mult('width', 0.14);
+    if (p.id === 'sat' || p.id === 'mstr_warm') value *= mult('grit', 0.14);
+    if (isMaster && (p.id === 'mstr_sculpt' || p.id === 'mstr_ss')) {
+      value *= mult('shine', 0.08);
+    }
     return { ...p, value: clamp(value, 0, 1) };
   });
   return { ...baseChain, processors };

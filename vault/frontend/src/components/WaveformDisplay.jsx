@@ -187,18 +187,18 @@ export default function WaveformDisplay({
     else if (onSeek) onSeek(t);
   };
 
-  const vault = variant === 'vault';
+  const rf = variant === 'rf';
 
   return (
     <div
       ref={wrapRef}
-      className={`waveform-wrap-spec ${vault ? 'waveform-wrap-spec--vault ' : ''}${className}`.trim()}
+      className={`waveform-wrap-spec ${rf ? 'waveform-wrap-spec--rf ' : ''}${className}`.trim()}
       style={{
-        borderRadius: vault ? 16 : 8,
-        border: vault ? '1px solid rgba(201, 168, 76, 0.2)' : '1px solid var(--border)',
+        borderRadius: rf ? 16 : 8,
+        border: rf ? '1px solid rgba(201, 168, 76, 0.2)' : '1px solid var(--border)',
         overflow: 'hidden',
         cursor: 'pointer',
-        boxShadow: vault ? 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.25)' : undefined,
+        boxShadow: rf ? 'inset 0 1px 0 rgba(255,255,255,0.06), 0 4px 24px rgba(0,0,0,0.25)' : undefined,
       }}
       onClick={click}
     >

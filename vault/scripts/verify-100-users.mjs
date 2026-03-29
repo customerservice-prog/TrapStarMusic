@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Simulates 100 independent API "users" against a running VAULT backend.
+ * Simulates 100 independent API "users" against a running RAP FACTORY backend.
  * Each user: health → create session → create track → patch track → list tracks
  * → snapshot → delete session (cleanup).
  *
@@ -9,7 +9,7 @@
  *   node vault/scripts/verify-100-users.mjs
  *
  * Env:
- *   VAULT_BASE_URL   e.g. http://localhost:3001 (overrides port file)
+ *   RAPFACTORY_BASE_URL or VAULT_BASE_URL   e.g. http://localhost:3001 (overrides port file)
  *   VERIFY_USERS     default 100
  *   VERIFY_CONCURRENCY default 10 (SQLite-friendly)
  */
@@ -25,7 +25,7 @@ const USER_COUNT = Math.max(1, parseInt(process.env.VERIFY_USERS || '100', 10));
 const CONCURRENCY = Math.max(1, parseInt(process.env.VERIFY_CONCURRENCY || '10', 10));
 
 function resolveBaseUrl() {
-  const env = process.env.VAULT_BASE_URL;
+  const env = process.env.RAPFACTORY_BASE_URL || process.env.VAULT_BASE_URL;
   if (env) return env.replace(/\/$/, '');
   const pf = path.join(vaultRoot, '.vault-backend-port');
   try {

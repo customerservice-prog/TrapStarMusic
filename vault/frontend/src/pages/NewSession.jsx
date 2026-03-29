@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../hooks/useStore.jsx';
 import { useAudioEngine } from '../hooks/useAudioEngine.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import { MIC_SOURCE_OPTIONS } from '../lib/micSource.js';
+import { pickSuggestedSessionName } from '../lib/sessionNames.js';
 
 /** Values must match backend key format (e.g. Am, C) */
 const KEYS = [
@@ -23,11 +25,12 @@ export default function NewSession() {
   const { decodeFile } = useAudioEngine();
   const fileRef = useRef(null);
   const nameRef = useRef(null);
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => pickSuggestedSessionName());
   const [beatName, setBeatName] = useState('');
   const [bpm, setBpm] = useState(140);
   const [key, setKey] = useState('A minor');
   const [genre, setGenre] = useState('Trap');
+  const [inputSource, setInputSource] = useState('phone');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -44,6 +47,7 @@ export default function NewSession() {
       musical_key: key,
       genre,
       beat_label: beatName.trim() || undefined,
+      input_source: inputSource,
     });
     if (!s?.id) {
       setBusy(false);
@@ -86,17 +90,21 @@ export default function NewSession() {
         >
           NEW SESSION
         </h1>
-        <p style={{ fontSize: 13, color: 'var(--text3)', margin: '8px 0 28px' }}>Fill in what you know — Rap Factory handles the rest</p>
+        <p style={{ fontSize: 13, color: 'var(--text3)', margin: '8px 0 20px', lineHeight: 1.5 }}>
+          Built for rappers, not engineers — phone mic, USB, or booth. We polish the vocal so it sounds like you left a real session.
+        </p>
 
-        <label className="section-label" style={{ marginBottom: 6 }}>
+        <label className="section-label" htmlFor="new-session-name" style={{ marginBottom: 6 }}>
           Session name *
         </label>
         <input
+          id="new-session-name"
           ref={nameRef}
           className="input-spec"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. DARK ZONE, Untitled Banger..."
+          placeholder="Song title or working name…"
+          aria-label="Session name"
           required
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
@@ -143,6 +151,20 @@ export default function NewSession() {
             </select>
           </div>
         </div>
+
+        <label className="section-label" style={{ margin: '18px 0 6px' }}>
+          What are you recording with?
+        </label>
+        <select className="input-spec" value={inputSource} onChange={(e) => setInputSource(e.target.value)}>
+          {MIC_SOURCE_OPTIONS.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <p style={{ fontSize: 11, color: 'var(--text4)', margin: '8px 0 0', lineHeight: 1.45 }}>
+          {MIC_SOURCE_OPTIONS.find((o) => o.id === inputSource)?.hint}
+        </p>
 
         <div style={{ display: 'flex', gap: 12, marginTop: 28, justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-ghost" onClick={() => nav('/')}>

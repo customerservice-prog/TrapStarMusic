@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 220" role="img" aria-labelledby="title desc">
+  <title id="title">Rap Factory</title>
+  <desc id="desc">Record, produce, drop hits  in-app brand mark</desc>
+  <defs>
+    <linearGradient id="rfGold" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e09020"/>
+      <stop offset="55%" stop-color="#f0d060"/>
+      <stop offset="100%" stop-color="#c9a84c"/>
+    </linearGradient>
+    <filter id="rfGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="480" height="220" rx="12" fill="#09090b"/>
+  <rect x="1" y="1" width="478" height="218" rx="11" fill="none" stroke="#c9a84c" stroke-opacity="0.25"/>
+  <text x="240" y="78" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="52" font-style="italic" fill="#f4f0eb" filter="url(#rfGlow)">Rap</text>
+  <text x="240" y="150" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif" font-size="72" fill="url(#rfGold)" letter-spacing="0.04em">FACTORY</text>
+  <text x="240" y="192" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#9e9a94" letter-spacing="0.22em">RECORD " PRODUCE " DROP HITS</text>
+</svg>

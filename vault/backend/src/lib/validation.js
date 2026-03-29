@@ -1,5 +1,6 @@
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KEY_RE = /^[A-G][#b]?m?$/i;
+const INPUT_SOURCES = new Set(['phone', 'budget', 'studio']);
 
 export function isUuid(id) {
   return typeof id === 'string' && UUID_RE.test(id);
@@ -30,7 +31,13 @@ export function validateSessionCreate(body) {
     body.beat_label == null || body.beat_label === ''
       ? null
       : String(body.beat_label).trim().slice(0, 120) || null;
-  return { ok: true, data: { name, bpm, musical_key, genre, beat_label } };
+  let input_source = null;
+  if (body.input_source != null && body.input_source !== '') {
+    const is = String(body.input_source).trim().toLowerCase();
+    if (!INPUT_SOURCES.has(is)) return err('input_source must be phone, budget, or studio');
+    input_source = is;
+  }
+  return { ok: true, data: { name, bpm, musical_key, genre, beat_label, input_source } };
 }
 
 export function validateSessionPatch(body) {
@@ -77,6 +84,14 @@ export function validateSessionPatch(body) {
     const v = Number(body.punch_in_end);
     if (!Number.isFinite(v) || v < 0) return err('punch_in_end invalid');
     out.punch_in_end = v;
+  }
+  if (body.input_source !== undefined) {
+    if (body.input_source === null || body.input_source === '') out.input_source = null;
+    else {
+      const is = String(body.input_source).trim().toLowerCase();
+      if (!INPUT_SOURCES.has(is)) return err('input_source must be phone, budget, or studio');
+      out.input_source = is;
+    }
   }
   return { ok: true, data: out };
 }

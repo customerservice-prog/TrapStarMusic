@@ -18,7 +18,8 @@ function readBackendProxyTarget() {
   } catch {
     /* no file yet or unreadable — fall back below */
   }
-  const fromEnv = process.env.VAULT_BACKEND_PORT || process.env.BACKEND_PORT;
+  const fromEnv =
+    process.env.RAPFACTORY_BACKEND_PORT || process.env.VAULT_BACKEND_PORT || process.env.BACKEND_PORT;
   if (fromEnv) {
     const port = parseInt(String(fromEnv), 10);
     if (Number.isFinite(port)) return `http://localhost:${port}`;
@@ -29,6 +30,7 @@ function readBackendProxyTarget() {
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true,
     port: 5173,
     strictPort: false,
     proxy: {

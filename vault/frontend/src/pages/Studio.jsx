@@ -3,13 +3,21 @@ import { useParams } from 'react-router-dom';
 import { useStore } from '../hooks/useStore.jsx';
 import { useAudioEngine } from '../hooks/useAudioEngine.js';
 import * as api from '../lib/api.js';
-import { vocalModeToTrackType } from '../lib/vibeMap.js';
+import {
+  vocalModeToTrackType,
+  VOCAL_LANE_PRESETS,
+  nextLaneLabel,
+  suggestedVocalModeForTrackType,
+} from '../lib/vibeMap.js';
+import { trackTypeLabel } from '../lib/layerPalette.js';
 import TrackRow from '../components/TrackRow.jsx';
 import AlertStrip from '../components/AlertStrip.jsx';
-import VaultArrangement from '../components/VaultArrangement.jsx';
-import VaultPerformance from '../components/VaultPerformance.jsx';
-import VaultSmartEngine from '../components/VaultSmartEngine.jsx';
+import StudioArrangement from '../components/StudioArrangement.jsx';
+import StudioPerformance from '../components/StudioPerformance.jsx';
+import StudioSmartEngine from '../components/StudioSmartEngine.jsx';
+import StudioMixerStrip from '../components/StudioMixerStrip.jsx';
 import MidiPianoRollModal from '../components/MidiPianoRollModal.jsx';
+import MicSourcePicker from '../components/MicSourcePicker.jsx';
 import { parseClips, defaultAudioClip, defaultMidiClip, clipsToJson } from '../lib/trackClips.js';
 
 function useNarrowWaveform() {
@@ -67,6 +75,7 @@ export default function Studio() {
     setStudioTab,
     retryPendingUpload,
     hasFailedBlob,
+    engineToggles,
   } = useStore();
 
   const engine = useAudioEngine();
@@ -135,7 +144,7 @@ export default function Studio() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('vault_last_session_id', id);
+      localStorage.setItem('rapfactory_last_session_id', id);
     } catch {
       /* */
     }
@@ -144,9 +153,9 @@ export default function Studio() {
   useEffect(() => {
     const iv = setInterval(() => {
       try {
-        sessionStorage.setItem('vault_mic_peak', String(engine.meter));
+        sessionStorage.setItem('rapfactory_mic_peak', String(engine.meter));
         const ms = engine.estimateMonitorLatencyMs();
-        if (ms != null) sessionStorage.setItem('vault_latency_ms', String(ms));
+        if (ms != null) sessionStorage.setItem('rapfactory_latency_ms', String(ms));
       } catch {
         /* */
       }
@@ -224,7 +233,7 @@ export default function Studio() {
       notify(
         {
           title: 'Microphone blocked',
-          text: 'Allow mic in the address bar, then reload VAULT.',
+          text: 'Mic blocked — allow access in the address bar, then reload RAP FACTORY.',
         },
         'warn'
       );
@@ -246,7 +255,7 @@ export default function Studio() {
       try {
         await engine.loadBeatFromUrl(api.beatFileUrl(session.id));
       } catch (e) {
-        notify(e?.message || 'Could not load beat from vault', 'warn');
+        notify(e?.message || 'Could not load your beat — try another file or re-upload.', 'warn');
       }
     })();
   }, [session?.beat_filename, session?.id, engine, notify]);
@@ -313,6 +322,12 @@ export default function Studio() {
   };
 
   const startRecordFlow = async () => {
+    if (selectedTrack && selectedTrack.track_type !== 'midi') {
+      const modeLayer = vocalModeToTrackType(vocalMode);
+      if (vocalMode === 'auto' || modeLayer !== selectedTrack.track_type) {
+        setVocalMode(suggestedVocalModeForTrackType(selectedTrack.track_type));
+      }
+    }
     engine.stopAllVocalTracks();
     setPlayingMap({});
     meterAccumRef.current = [];
@@ -357,15 +372,39 @@ export default function Studio() {
       peakDb: -10 - (1 - avgMeter) * 20,
       timingScore: 0.55 + avgMeter * 0.35,
     };
-    const tt = vocalModeToTrackType(vocalMode);
-    const tr = await createTrack(id, `${tt} · take`, tt);
-    if (!tr?.id) {
+
+    if (selectedTrack?.track_type === 'midi') {
+      notify(
+        {
+          title: 'Pick a vocal lane',
+          text: 'MIDI lanes are for patterns — select lead, double, adlib, or harmony to print a vocal take.',
+        },
+        'warn'
+      );
       setProcessing(false);
       return;
     }
+
+    let tr;
+    if (selectedTrack && selectedTrack.track_type !== 'midi') {
+      tr = selectedTrack;
+    } else {
+      const tt = vocalModeToTrackType(vocalMode);
+      const defaults = { main: 'Lead', double: 'Double', adlib: 'Adlib', harmony: 'Harmony' };
+      const label = nextLaneLabel(tracks, tt, defaults[tt] || 'Vocal');
+      tr = await createTrack(id, label, tt);
+      if (!tr?.id) {
+        setProcessing(false);
+        return;
+      }
+      setSelectedTrackId(tr.id);
+    }
+
     const fname = blob.type?.includes('wav') ? 'take.wav' : 'take.webm';
     try {
-      const r = await uploadTakeWithRetry(tr.id, blob, meta, id, fname);
+      const r = await uploadTakeWithRetry(tr.id, blob, meta, id, fname, {
+        layerLabel: trackTypeLabel(tr.track_type),
+      });
       if (r?.feedback) setLastFeedback(r.feedback);
       setSelectedTrackId(tr.id);
     } catch {
@@ -423,6 +462,8 @@ export default function Studio() {
         eqMid: track.eq_mid != null ? Number(track.eq_mid) : 0.5,
         eqHigh: track.eq_high != null ? Number(track.eq_high) : 0.5,
         flexDetuneCents: track.flex_detune_cents != null ? Number(track.flex_detune_cents) : 0,
+        chainSnapshot: track.chain_snapshot ?? null,
+        smartPlaybackEnabled: engineToggles?.smartChainPlayback !== false,
         onEnded: () => setPlayingMap((m) => ({ ...m, [track.id]: false })),
       });
       setPlayingMap((m) => ({ ...m, [track.id]: true }));
@@ -433,7 +474,26 @@ export default function Studio() {
 
   const addLayer = async () => {
     const tt = vocalModeToTrackType(vocalMode);
-    await createTrack(id, `${tt} layer`, tt);
+    const defaults = { main: 'Lead', double: 'Double', adlib: 'Adlib', harmony: 'Harmony', midi: 'MIDI' };
+    const label = nextLaneLabel(tracks, tt, defaults[tt] || 'Vocal');
+    const tr = await createTrack(id, label, tt);
+    if (tr?.id) setSelectedTrackId(tr.id);
+  };
+
+  const addTypedLayer = async (preset) => {
+    if (preset.trackType !== 'midi') setVocalMode(preset.mode);
+    const label = nextLaneLabel(tracks, preset.trackType, preset.defaultLabel);
+    const tr = await createTrack(id, label, preset.trackType);
+    if (tr?.id) {
+      setSelectedTrackId(tr.id);
+      notify(
+        {
+          title: `${preset.defaultLabel} ready`,
+          text: 'Lane armed — hit record when you are set.',
+        },
+        'success'
+      );
+    }
   };
 
   const showBeatDrop = !session?.beat_filename;
@@ -473,34 +533,40 @@ export default function Studio() {
 
   if (!id) {
     return (
-      <div className="studio-vault" style={{ padding: 24 }}>
+      <div className="studio-workspace" style={{ padding: 24 }}>
         <p style={{ color: 'var(--text2)' }}>Missing session.</p>
       </div>
     );
   }
 
   return (
-    <div className="studio-vault">
+    <div className="studio-workspace">
       {alert && (
         <div className="studio-alert-host">
           <AlertStrip alert={alert} onDismiss={() => setAlert(null)} />
         </div>
       )}
 
-      <div className="studio-vault-layout">
-        <div className="studio-vault-main">
-          <div className={`studio-vault-section studio-vault-section--song ${tabIs('beat')}`}>
-            <header className="vault-session-head glass-panel">
-              <div className="vault-session-head__text">
-                <h1 className="vault-session-head__title">{session?.beat_label || session?.name || 'Session'}</h1>
-                <p className="vault-session-head__meta">
-                  {session?.genre ? `${session.genre} · ` : ''}
-                  Smart vocal studio
+      <div className="studio-workspace-layout">
+        <div className="studio-workspace-main">
+          <div className={`studio-workspace-section studio-workspace-section--song ${tabIs('beat')}`}>
+            <header className="rf-session-head glass-panel">
+              <div className="rf-session-head__text">
+                <h1 className="rf-session-head__title">{session?.beat_label || session?.name || 'Session'}</h1>
+                <p className="rf-session-head__meta">
+                  {[
+                    session?.bpm && `${session.bpm} BPM`,
+                    session?.musical_key,
+                    session?.genre,
+                    engine.beatDuration > 0 && `${fmtTime(engine.beatDuration)} length`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || 'RAP FACTORY session · any mic'}
                 </p>
               </div>
               {showBeatDrop && (
                 <div
-                  className="vault-beat-drop"
+                  className="rf-beat-drop"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={async (e) => {
                     e.preventDefault();
@@ -508,8 +574,8 @@ export default function Studio() {
                     if (f) await onBeatFile(f);
                   }}
                 >
-                  <span>Drop your beat</span>
-                  <label className="vault-beat-drop__browse">
+                  <span>Drop your beat here to start building the record.</span>
+                  <label className="rf-beat-drop__browse">
                     or browse
                     <input type="file" accept=".mp3,.wav,.ogg,.m4a,audio/*" hidden onChange={(e) => e.target.files?.[0] && onBeatFile(e.target.files[0])} />
                   </label>
@@ -517,11 +583,50 @@ export default function Studio() {
               )}
             </header>
 
-            <VaultArrangement {...arrangementProps} />
+            <div className="rf-song-structure glass-panel" aria-label="Song structure reference">
+              <span className="rf-song-structure__label">Song map</span>
+              {['Intro', 'Hook', 'Verse', 'Hook', 'Verse', 'Outro'].map((x, i) => (
+                <span key={`${x}-${i}`} className="rf-song-structure__pill">
+                  {x}
+                </span>
+              ))}
+            </div>
+
+            <MicSourcePicker
+              value={session?.input_source}
+              disabled={!session}
+              onChange={async (src) => {
+                const r = await patchSession(id, { input_source: src });
+                if (r) {
+                  notify(
+                    {
+                      title: 'Studio setup updated',
+                      text: 'New takes use this mic profile. Re-record a layer if you want the chain to fully match.',
+                    },
+                    'success'
+                  );
+                }
+              }}
+            />
+
+            <StudioArrangement {...arrangementProps} />
           </div>
 
-          <div className={`studio-vault-section studio-vault-section--record ${tabIs('record')}`}>
-            <VaultPerformance
+          <div className={`studio-workspace-section studio-workspace-section--record ${tabIs('record')}`}>
+            <div className="rf-quick-layers glass-panel">
+              <span className="rf-quick-layers__label">Add layer</span>
+              <div className="rf-quick-layers__row">
+                {VOCAL_LANE_PRESETS.map((p) => (
+                  <button key={p.mode} type="button" className="btn btn-ghost rf-quick-layers__btn" title={p.hint} onClick={() => addTypedLayer(p)}>
+                    {p.strip}
+                  </button>
+                ))}
+              </div>
+              <p className="rf-quick-layers__hint">
+                Lead · doubles · adlibs · harmony · punch-in lane — stack the full song without leaving this screen.
+              </p>
+            </div>
+            <StudioPerformance
               engine={engine}
               processing={processing}
               recSec={recSec}
@@ -542,15 +647,25 @@ export default function Studio() {
               onCountInChange={setCountInBars}
               meterWidthPct={meterWidthPct}
               latencyMs={latencyMs}
+              beatTimeSec={engine.beatTime}
+              beatDurationSec={engine.beatDuration || 0}
             />
           </div>
 
-          <div className={`studio-vault-section studio-vault-layers ${tabIs('tracks')}`}>
-            <div className="section-label vault-layers-label">Layers</div>
+          <div className={`studio-workspace-section studio-workspace-layers ${tabIs('tracks')}`}>
+            <StudioMixerStrip
+              tracks={tracks}
+              session={session}
+              soloTrackId={soloTrackId}
+              onSolo={setSoloTrackId}
+              onPatchTrack={(trackId, body) => patchTrackFields(trackId, body, id)}
+              playingMap={playingMap}
+            />
+            <div className="section-label rf-layers-label">Layers & takes</div>
             {!tracks.length && (
-              <div className="vault-layers-empty">
+              <div className="rf-layers-empty">
                 <p>No layers yet</p>
-                <p className="vault-layers-empty__sub">Press record — your first take becomes a layer.</p>
+                <p className="rf-layers-empty__sub">Hit record — your first take becomes the lead.</p>
               </div>
             )}
             {tracks.map((t) => (
@@ -573,13 +688,13 @@ export default function Studio() {
                 onPatch={(body) => patchTrackFields(t.id, body, id)}
                 soloTrackId={soloTrackId}
                 onSolo={(tid) => setSoloTrackId(tid)}
-                className="track-row-vault"
+                className="track-row-rf"
               />
             ))}
-            <button type="button" className="btn btn-ghost vault-add-layer" onClick={addLayer}>
-              + Add layer
+            <button type="button" className="btn btn-ghost rf-add-layer" onClick={addLayer}>
+              + Add layer (current vocal mode)
             </button>
-            <div className="vault-layers-actions">
+            <div className="rf-layers-actions">
               <button type="button" className="btn btn-ghost" onClick={openVersions}>
                 Version history
               </button>
@@ -592,8 +707,8 @@ export default function Studio() {
           </div>
         </div>
 
-        <div className={`studio-vault-side ${tabIs('chain')}`}>
-          <VaultSmartEngine
+        <div className={`studio-workspace-side ${tabIs('chain')}`}>
+          <StudioSmartEngine
             sessionId={id}
             sessionName={session?.name}
             vocalMode={vocalMode}
@@ -603,6 +718,8 @@ export default function Studio() {
             lastFeedback={lastFeedback}
             setLastFeedback={setLastFeedback}
             selectedTrack={selectedTrack}
+            tracks={tracks}
+            engineeredPlaybackOn={engineToggles?.smartChainPlayback !== false}
           />
         </div>
       </div>
@@ -618,7 +735,7 @@ export default function Studio() {
         }}
       />
 
-      <nav className="studio-tabs-mobile studio-tabs-mobile--vault" aria-label="Studio sections">
+      <nav className="studio-tabs-mobile studio-tabs-mobile--rf" aria-label="Studio sections">
         {[
           ['beat', 'Song'],
           ['record', 'Record'],

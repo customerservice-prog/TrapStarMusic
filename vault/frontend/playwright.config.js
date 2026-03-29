@@ -34,7 +34,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      name: 'vault-backend',
+      name: 'rap-factory-backend',
       command: 'node src/server.js',
       cwd: backendDir,
       env: { ...process.env, PORT: '3001' },
@@ -48,7 +48,7 @@ export default defineConfig({
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
-      dependencies: ['vault-backend'],
+      dependencies: ['rap-factory-backend'],
     },
   ],
 });

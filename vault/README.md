@@ -1,6 +1,13 @@
-# VAULT
+# RAP FACTORY
 
 Private trap vocal studio — React + Vite frontend, Express + SQLite backend.
+
+## Launch checklist
+
+1. Install dependencies and run **backend** then **frontend** (see below).
+2. Open the app in **Chrome or Edge** (Web Audio + mic work best), allow microphone when prompted.
+3. Optional: install **FFmpeg** for one-file mix export; without it, stems/ZIP still work.
+4. **Logo:** `public/rap-factory-logo.png` is optional. If it is missing or fails to load, the app uses `public/rap-factory-logo.svg`. Replace the PNG with your full artwork when you have it; keep filename `rap-factory-logo.png` or update `BrandLogo.jsx`.
 
 ## Run locally
 
@@ -24,7 +31,7 @@ Start the **backend before** the frontend. If 3001 is already in use, the backen
 
 Open the URL Vite prints (usually port 5173; if that port is busy, Vite uses the next free one). Allow microphone access.
 
-If you start the frontend first, restart Vite after the backend is up, or set `VAULT_BACKEND_PORT` to match the backend when running `npm run dev`.
+If you start the frontend first, restart Vite after the backend is up, or set `RAPFACTORY_BACKEND_PORT` (or legacy `VAULT_BACKEND_PORT`) to match the backend when running `npm run dev`.
 
 The database is **sql.js** (SQLite in WebAssembly) — no native compiler required on Windows.
 

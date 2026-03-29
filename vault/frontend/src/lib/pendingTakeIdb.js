@@ -1,4 +1,4 @@
-const DB_NAME = 'vault-pending';
+const DB_NAME = 'rapfactory-pending';
 const STORE = 'take';
 const KEY = 'last';
 

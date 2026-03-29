@@ -6,15 +6,21 @@ import net from 'net';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { initDb, getDb } from './models/db.js';
+import { initDb } from './models/db.js';
+import { env } from './config/env.js';
+import { ensureDataTree } from './services/storageService.js';
 import { sessionsRouter } from './routes/sessions.js';
 import { tracksRouter } from './routes/tracks.js';
 import { engineRouter } from './routes/engine.js';
+import { adminRouter } from './routes/admin.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { attachLocalUser } from './middleware/attachLocalUser.js';
+import * as healthController from './controllers/healthController.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const vaultRoot = path.join(__dirname, '../..');
 const BACKEND_PORT_FILE = path.join(vaultRoot, '.vault-backend-port');
-const PREFERRED_PORT = Number(process.env.PORT) || 3001;
+const PREFERRED_PORT = env.port;
 const MAX_PORT_TRIES = 40;
 
 function writeBackendPortFile(port) {
@@ -31,10 +37,6 @@ function clearBackendPortFile() {
   } catch (_) {}
 }
 
-/**
- * Find first free port starting at preferredPort (probe-only; avoids express-ws / ws.Server
- * receiving EADDRINUSE from the real HTTP server, which Node does not reliably recover from).
- */
 function findFirstFreePort(preferredPort) {
   return new Promise((resolve, reject) => {
     let port = preferredPort;
@@ -88,31 +90,29 @@ expressWs(app, server);
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '4mb' }));
+app.use(attachLocalUser);
 
 app.use(async (_req, res, next) => {
   try {
     await initDb();
     next();
   } catch (err) {
-    res.status(503).json({ error: err.message || 'Database unavailable', code: 'DB_INIT' });
+    res.status(503).json({
+      ok: false,
+      error: { code: 'DB_INIT', message: err.message || 'Database unavailable' },
+    });
   }
 });
 
-app.get('/api/health', (_req, res) => {
-  try {
-    getDb();
-    res.json({ ok: true, service: 'vault-backend', time: new Date().toISOString() });
-  } catch (e) {
-    res.status(503).json({ ok: false, error: e.message });
-  }
-});
+app.get('/api/health', healthController.health);
 
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/tracks', tracksRouter);
 app.use('/api/engine', engineRouter);
+app.use('/api/admin', adminRouter);
 
 app.ws('/api/ws', (ws) => {
-  ws.send(JSON.stringify({ type: 'hello', ok: true, service: 'vault' }));
+    ws.send(JSON.stringify({ type: 'hello', ok: true, service: 'rap-factory-backend' }));
   ws.on('message', (raw) => {
     try {
       const text = typeof raw === 'string' ? raw : raw?.toString?.() || '';
@@ -151,19 +151,12 @@ app.ws('/api/ws', (ws) => {
   });
 });
 
-app.use((err, _req, res, _next) => {
-  console.error('[server]', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    code: err.code || 'SERVER_ERROR',
-  });
-});
+app.use(errorHandler);
 
 async function start() {
   try {
     await initDb();
-    const dataRoot = path.join(__dirname, '../../data');
-    if (!fs.existsSync(dataRoot)) fs.mkdirSync(dataRoot, { recursive: true });
+    ensureDataTree();
     const port = await findFirstFreePort(PREFERRED_PORT);
     await listenHttpServer(server, port);
     writeBackendPortFile(port);

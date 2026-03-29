@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useStore } from './hooks/useStore.jsx';
 import Nav from './components/Nav.jsx';
 import Notifications from './components/Notifications.jsx';
+import FirstVisitOverlay from './components/FirstVisitOverlay.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Studio from './pages/Studio.jsx';
 import ExportPage from './pages/ExportPage.jsx';
@@ -42,6 +43,7 @@ export default function App() {
         </div>
       )}
       <Nav />
+      <FirstVisitOverlay />
       <Notifications />
       <AppMain />
     </>

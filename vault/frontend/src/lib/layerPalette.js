@@ -1,4 +1,4 @@
-/** Artist-facing layer labels + tints (VAULT spec). */
+/** Artist-facing layer labels + tints (RAP FACTORY). */
 export const LAYER_HEX = {
   main: '#c9a84c',
   double: '#6b9fd4',

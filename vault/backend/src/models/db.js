@@ -156,6 +156,7 @@ function initSchema(database) {
       beat_uploaded_at TEXT,
       punch_in_start REAL,
       punch_in_end REAL,
+      input_source TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -248,6 +249,9 @@ function initSchema(database) {
   } catch (_) {}
   try {
     database.exec(`ALTER TABLE tracks ADD COLUMN muted INTEGER DEFAULT 0`);
+  } catch (_) {}
+  try {
+    database.exec(`ALTER TABLE sessions ADD COLUMN input_source TEXT`);
   } catch (_) {}
 }
 

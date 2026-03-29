@@ -1,10 +1,16 @@
-const DEBUG = process.env.VAULT_DEBUG === '1' || process.env.VAULT_DEBUG === 'true';
+const DEBUG =
+  process.env.RAPFACTORY_DEBUG === '1' ||
+  process.env.RAPFACTORY_DEBUG === 'true' ||
+  process.env.VAULT_DEBUG === '1' ||
+  process.env.VAULT_DEBUG === 'true';
+
+const TAG = 'rap-factory';
 
 function out(level, msg, ctx) {
   const line = ctx && Object.keys(ctx).length ? `${msg} ${JSON.stringify(ctx)}` : msg;
-  if (level === 'error') console.error(`[vault:${level}]`, line);
-  else if (level === 'warn') console.warn(`[vault:${level}]`, line);
-  else if (DEBUG || level === 'info') console.log(`[vault:${level}]`, line);
+  if (level === 'error') console.error(`[${TAG}:${level}]`, line);
+  else if (level === 'warn') console.warn(`[${TAG}:${level}]`, line);
+  else if (DEBUG || level === 'info') console.log(`[${TAG}:${level}]`, line);
 }
 
 export const log = {

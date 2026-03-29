@@ -1,7 +1,7 @@
 import ClipTimelineLanes from './ClipTimelineLanes.jsx';
 import { LAYER_HEX, trackTypeLabel } from '../lib/layerPalette.js';
 
-export default function VaultArrangement({
+export default function StudioArrangement({
   bpm,
   duration,
   currentTime,
@@ -28,13 +28,13 @@ export default function VaultArrangement({
   const playPct = dur > 0 ? Math.min(100, Math.max(0, (t / dur) * 100)) : 0;
 
   return (
-    <div className="vault-arrangement glass-panel" aria-label="Song timeline">
-      <div className="vault-arrangement__inner">
-        <div className="vault-arrangement__lanes">
-          <div className="vault-lane-spacer" aria-hidden />
-          <div className="vault-lane vault-lane--beat">
-            <span className="vault-lane__dot vault-lane__dot--beat" />
-            <span className="vault-lane__name">Beat</span>
+    <div className="rf-arrangement glass-panel" aria-label="Song timeline and vocal lanes">
+      <div className="rf-arrangement__inner">
+        <div className="rf-arrangement__lanes">
+          <div className="rf-lane-spacer" aria-hidden />
+          <div className="rf-lane rf-lane--beat">
+            <span className="rf-lane__dot rf-lane__dot--beat" />
+            <span className="rf-lane__name">Beat</span>
           </div>
           {tracks.map((track) => {
             const muted = !!track.muted;
@@ -45,18 +45,18 @@ export default function VaultArrangement({
             return (
               <div
                 key={track.id}
-                className={`vault-lane ${selectedTrackId === track.id ? 'vault-lane--selected' : ''}`}
+                className={`rf-lane ${selectedTrackId === track.id ? 'rf-lane--selected' : ''}`}
                 style={{ '--lane-accent': color }}
               >
-                <button type="button" className="vault-lane__main" onClick={() => onSelectTrack(track.id)}>
-                  <span className="vault-lane__dot" />
-                  <span className="vault-lane__title">{(track.label || typeLbl).slice(0, 22)}</span>
-                  <span className="vault-lane__type">{typeLbl}</span>
+                <button type="button" className="rf-lane__main" onClick={() => onSelectTrack(track.id)}>
+                  <span className="rf-lane__dot" />
+                  <span className="rf-lane__title">{(track.label || typeLbl).slice(0, 22)}</span>
+                  <span className="rf-lane__type">{typeLbl}</span>
                 </button>
-                <div className="vault-lane__ms">
+                <div className="rf-lane__ms">
                   <button
                     type="button"
-                    className={`vault-ms ${muted ? 'vault-ms--on' : ''}`}
+                    className={`rf-ms ${muted ? 'rf-ms--on' : ''}`}
                     title="Mute"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -67,7 +67,7 @@ export default function VaultArrangement({
                   </button>
                   <button
                     type="button"
-                    className={`vault-ms ${solo ? 'vault-ms--solo' : ''}`}
+                    className={`rf-ms ${solo ? 'rf-ms--solo' : ''}`}
                     title="Solo"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -76,8 +76,8 @@ export default function VaultArrangement({
                   >
                     Solo
                   </button>
-                  <span className={`vault-arm ${armed ? 'vault-arm--on' : ''}`} title="Recording to this layer">
-                    {armed ? 'Live' : ''}
+                  <span className={`rf-arm ${armed ? 'rf-arm--on' : ''}`} title="Recording to this layer">
+                    {armed ? 'Armed' : ''}
                   </span>
                 </div>
               </div>
@@ -85,9 +85,9 @@ export default function VaultArrangement({
           })}
         </div>
 
-        <div className="vault-arrangement__timeline">
+        <div className="rf-arrangement__timeline">
           <ClipTimelineLanes
-            variant="vault"
+            variant="rf"
             duration={dur}
             bpm={bpm}
             currentTime={currentTime}

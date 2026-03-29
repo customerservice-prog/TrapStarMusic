@@ -30,19 +30,22 @@ function exportTimestamp() {
 }
 
 /**
- * VAULT_{SESSION_NAME}_{EXPORT_TYPE}_{TIMESTAMP}.wav|.zip
+ * RAPFACTORY_{SESSION_NAME}_{EXPORT_TYPE}_{TIMESTAMP}.wav|.zip
  */
-export function vaultExportBasename(sessionName, exportType, ext = 'wav') {
+export function rapFactoryExportBasename(sessionName, exportType, ext = 'wav') {
   const safe = sanitizeSessionName(sessionName);
   const type = String(exportType || 'EXPORT').toUpperCase().replace(/[^A-Z0-9_]/g, '_');
   const ts = exportTimestamp();
-  return `VAULT_${safe}_${type}_${ts}.${ext.replace(/^\./, '')}`;
+  return `RAPFACTORY_${safe}_${type}_${ts}.${ext.replace(/^\./, '')}`;
 }
 
-export function vaultExportPath(sessionName, exportType, ext = 'wav') {
+export function rapFactoryExportPath(sessionName, exportType, ext = 'wav') {
   ensureExportsDir();
-  return path.join(exportsDir, vaultExportBasename(sessionName, exportType, ext));
+  return path.join(exportsDir, rapFactoryExportBasename(sessionName, exportType, ext));
 }
+
+/** @deprecated Use rapFactoryExportPath */
+export const vaultExportPath = rapFactoryExportPath;
 
 export function checkFfmpegAvailable() {
   return new Promise((resolve) => {

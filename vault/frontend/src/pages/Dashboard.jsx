@@ -1,13 +1,24 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../hooks/useStore.jsx';
 import { decisionToCopy, decisionDotClass } from '../lib/decisionCopy.js';
+import { sessionProgressMeta } from '../lib/sessionProgress.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import { trackTypeLabel } from '../lib/layerPalette.js';
 
 function formatSessionTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function formatAgo(iso) {
+  if (!iso) return '';
+  const t = Date.now() - new Date(iso).getTime();
+  if (t < 60_000) return 'just now';
+  if (t < 3_600_000) return `${Math.floor(t / 60_000)} min ago`;
+  if (t < 86_400_000) return `${Math.floor(t / 3_600_000)} hr ago`;
+  return formatSessionTime(iso);
 }
 
 function modeToTrackDots(count) {
@@ -26,7 +37,11 @@ export default function Dashboard() {
     recentDecisionsGlobal,
     loadRecentDecisionsGlobal,
     deleteSessionApi,
+    patchSession,
   } = useStore();
+
+  const [renameId, setRenameId] = useState(null);
+  const [renameVal, setRenameVal] = useState('');
 
   useEffect(() => {
     loadSessions();
@@ -38,157 +53,93 @@ export default function Dashboard() {
 
   let lastSessionId = null;
   try {
-    lastSessionId = localStorage.getItem('vault_last_session_id');
+    lastSessionId =
+      localStorage.getItem('rapfactory_last_session_id') || localStorage.getItem('vault_last_session_id');
   } catch {
     /* */
   }
   const resumeSession = lastSessionId ? sessions.find((s) => s.id === lastSessionId) : null;
 
+  const startRename = (e, s) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setRenameId(s.id);
+    setRenameVal(s.name);
+  };
+
+  const commitRename = async (sessionId) => {
+    const v = renameVal.trim();
+    if (v) await patchSession(sessionId, { name: v });
+    await loadSessions();
+    setRenameId(null);
+  };
+
   return (
     <main className="page-dash">
-      <div className="brand-hero-wrap">
-        <BrandLogo variant="hero" />
-      </div>
-      {resumeSession && (
-        <div
-          className="card-spec"
-          style={{
-            marginBottom: 20,
-            padding: 16,
-            borderRadius: 12,
-            borderColor: 'var(--gold2)',
-            background: 'var(--gold-dim)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 12,
-          }}
-        >
+      <header className="rf-dash-head">
+        <div className="rf-dash-head__brand">
+          <BrandLogo variant="inline" className="rf-dash-logo" />
           <div>
-            <div style={{ fontSize: 11, color: 'var(--gold2)', fontWeight: 600, letterSpacing: 1 }}>CONTINUE</div>
-            <div style={{ fontSize: 15, color: 'var(--text)', marginTop: 4 }}>{resumeSession.name}</div>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-              Last opened · {formatSessionTime(resumeSession.updated_at)}
-            </div>
+            <h1 className="rf-dash-title">YOUR SESSIONS</h1>
+            <p className="rf-dash-sub">
+              {sessions.length} song{sessions.length === 1 ? '' : 's'} in progress · RAP FACTORY keeps the booth sound consistent
+              across every take.
+            </p>
           </div>
-          <Link to={`/studio/${resumeSession.id}`} className="btn btn-primary">
-            Open session
-          </Link>
-        </div>
-      )}
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 36,
-              letterSpacing: 3,
-              fontWeight: 400,
-              margin: 0,
-              lineHeight: 1,
-              color: 'var(--text)',
-            }}
-          >
-            YOUR SESSIONS
-          </h1>
-          <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--text3)' }}>
-            {sessions.length} project{sessions.length === 1 ? '' : 's'} saved
-          </p>
         </div>
         <Link to="/new" className="btn btn-primary">
-          + New Session
+          + New session
         </Link>
       </header>
 
+      {resumeSession && (
+        <div className="rf-continue-card card-spec">
+          <div>
+            <div className="rf-continue-label">Continue your record</div>
+            <div className="rf-continue-name">{resumeSession.name}</div>
+            <div className="rf-continue-progress">
+              {sessionProgressMeta(resumeSession, resumeSession.track_count || 0, resumeSession.last_layer_type).hint}
+            </div>
+            <div className="mono rf-continue-meta">Last opened · {formatAgo(resumeSession.updated_at)}</div>
+          </div>
+          <div className="rf-continue-actions">
+            <Link to={`/studio/${resumeSession.id}`} className="btn btn-primary">
+              Open studio
+            </Link>
+            <Link to={`/export/${resumeSession.id}`} className="btn btn-ghost">
+              Export
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="grid-sessions-dash">
-        <Link
-          to="/new"
-          className="session-new-card"
-          style={{
-            minHeight: 130,
-            borderRadius: 12,
-            border: '1px dashed var(--border2)',
-            background: 'var(--bg3)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textDecoration: 'none',
-            transition: 'all 200ms ease',
-          }}
-        >
-          <span
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              border: '2px solid var(--gold)',
-              color: 'var(--gold2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 18,
-              marginBottom: 8,
-            }}
-          >
-            +
-          </span>
-          <span style={{ fontSize: 13, color: 'var(--text3)' }}>New Session</span>
+        <Link to="/new" className="session-new-card">
+          <span className="session-new-card__icon">+</span>
+          <span className="session-new-card__label">New session</span>
         </Link>
 
         {sessions.map((s) => {
-          const mixReady = (s.track_count || 0) > 0;
+          const progress = sessionProgressMeta(s, s.track_count || 0, s.last_layer_type);
           const { dots, more } = modeToTrackDots(s.track_count || 0);
+          const lastLayer = s.last_layer_type ? trackTypeLabel(s.last_layer_type) : null;
+
           return (
             <div
               key={s.id}
-              className="session-card-spec"
-              style={{
-                position: 'relative',
-                minHeight: 130,
-                borderRadius: 12,
-                border: '1px solid var(--border)',
-                background: 'var(--bg3)',
-                padding: 16,
-                cursor: 'pointer',
-                transition: 'all 220ms ease',
-              }}
+              className="session-card-spec rf-session-card"
               role="link"
               tabIndex={0}
               onClick={() => nav(`/studio/${s.id}`)}
               onKeyDown={(e) => e.key === 'Enter' && nav(`/studio/${s.id}`)}
             >
-              <span
-                className="mono"
-                style={{
-                  position: 'absolute',
-                  top: 12,
-                  right: 12,
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: 1,
-                  textTransform: 'uppercase',
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  background: mixReady ? 'var(--green-dim)' : 'var(--gold-dim)',
-                  color: mixReady ? 'var(--green)' : 'var(--gold2)',
-                }}
-              >
-                {mixReady ? 'MIX-READY' : 'IN PROGRESS'}
+              <span className={`rf-session-badge rf-session-badge--${progress.stage === 'no_beat' ? 'warn' : 'ok'}`}>
+                {progress.badge}
               </span>
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="btn btn-ghost rf-session-delete"
                 title="Delete session"
-                style={{
-                  position: 'absolute',
-                  top: 36,
-                  right: 10,
-                  padding: '2px 6px',
-                  opacity: 0,
-                  fontSize: 14,
-                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (
@@ -201,41 +152,59 @@ export default function Dashboard() {
               >
                 ✕
               </button>
-              <div
-                className="mono"
-                style={{
-                  display: 'inline-block',
-                  fontSize: 10,
-                  color: 'var(--text3)',
-                  background: 'var(--bg2)',
-                  padding: '2px 8px',
-                  borderRadius: 4,
-                  marginBottom: 8,
-                }}
-              >
+
+              <div className="mono rf-session-meta-row">
                 {s.bpm || '—'} BPM · {s.musical_key || '—'} · {s.genre || '—'}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', paddingRight: 72 }}>{s.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
+
+              {renameId === s.id ? (
+                <div className="rf-session-rename" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    className="input-spec"
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && commitRename(s.id)}
+                    autoFocus
+                  />
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => commitRename(s.id)}>
+                    Save
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRenameId(null)}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="rf-session-title">{s.name}</div>
+              )}
+
+              <div className="rf-session-subline">
                 {s.track_count || 0} layers · {s.beat_label || s.beat_filename ? 'beat loaded' : 'no beat'}
+                {lastLayer && ` · last: ${lastLayer}`}
               </div>
-              <div style={{ display: 'flex', gap: 4, marginTop: 8, alignItems: 'center' }}>
+              <div className="rf-session-progress-hint">{progress.hint}</div>
+
+              <div className="rf-session-dots">
                 {dots.map((c, i) => (
                   <span
                     key={i}
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      background: c === 'gold' ? 'var(--gold)' : 'var(--blue)',
-                      opacity: 1,
-                    }}
+                    className="rf-session-dot"
+                    style={{ background: c === 'gold' ? 'var(--gold)' : 'var(--blue)' }}
                   />
                 ))}
-                {more > 0 && <span className="mono" style={{ fontSize: 9, color: 'var(--text4)' }}>+{more}</span>}
+                {more > 0 && <span className="mono rf-session-more">+{more}</span>}
               </div>
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text4)', marginTop: 8 }}>
-                {formatSessionTime(s.updated_at)}
+              <div className="mono rf-session-time">{formatSessionTime(s.updated_at)}</div>
+
+              <div className="rf-session-actions" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => startRename(e, s)}>
+                  Rename
+                </button>
+                <Link to={`/export/${s.id}`} className="btn btn-ghost btn-sm">
+                  Export
+                </Link>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => nav(`/studio/${s.id}`)}>
+                  Open
+                </button>
               </div>
             </div>
           );
@@ -243,66 +212,323 @@ export default function Dashboard() {
       </div>
 
       {!sessions.length && backendOnline && (
-        <p style={{ textAlign: 'center', color: 'var(--text3)', marginTop: 32, fontSize: 14 }}>
-          Your first session is one click away
-        </p>
+        <p className="rf-dash-empty">Your first session is one click away — start a song and drop a beat when you are ready.</p>
       )}
 
-      <section className="card-spec" style={{ marginTop: 28, padding: 18 }}>
-        <div className="section-label">Smart Engine · Recent Decisions</div>
+      <section className="card-spec rf-intel-section">
+        <div className="section-label">Studio intelligence</div>
+        <p className="rf-intel-intro">What the built-in producer is doing for your sound — not debug logs.</p>
         {!decisionsShow.length && (
-          <p style={{ color: 'var(--text3)', fontSize: 13, margin: '12px 0 0' }}>Start recording to see Smart Engine decisions</p>
+          <p className="rf-intel-empty">Record a take to see how RAP FACTORY shapes your chain for this session.</p>
         )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+        <div className="rf-intel-list">
           {decisionsShow.map((row) => {
             const copy = decisionToCopy(row);
             const dc = decisionDotClass(row.decision_type);
             const dotColor =
               dc === 'blue' ? 'var(--blue)' : dc === 'green' ? 'var(--green)' : 'var(--gold)';
             return (
-              <div
-                key={row.id}
-                className="card-spec"
-                style={{
-                  padding: 10,
-                  background: 'var(--bg4)',
-                  borderRadius: 8,
-                  display: 'flex',
-                  gap: 12,
-                  alignItems: 'flex-start',
-                }}
-              >
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, marginTop: 5, flexShrink: 0 }} />
+              <div key={row.id} className="rf-intel-item card-spec">
+                <span className="rf-intel-dot" style={{ background: dotColor }} />
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{copy.title}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)', lineHeight: 1.5, marginTop: 4 }}>{copy.message}</div>
+                  <div className="rf-intel-title">{copy.title}</div>
+                  <div className="rf-intel-msg">{copy.message}</div>
                 </div>
               </div>
             );
           })}
         </div>
         {hasMore && (
-          <button type="button" className="btn btn-ghost" style={{ marginTop: 12, fontSize: 11 }} onClick={() => loadRecentDecisionsGlobal()}>
-            Refresh log
+          <button type="button" className="btn btn-ghost rf-intel-refresh" onClick={() => loadRecentDecisionsGlobal()}>
+            Refresh
           </button>
         )}
       </section>
 
       <style>{`
-        .session-card-spec:hover {
+        .rf-dash-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 20px;
+          margin-bottom: 28px;
+          flex-wrap: wrap;
+        }
+        .rf-dash-head__brand {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+        .rf-dash-logo {
+          max-height: 48px;
+          width: auto;
+        }
+        .rf-dash-title {
+          font-family: var(--font-display);
+          font-size: 32px;
+          letter-spacing: 3px;
+          font-weight: 400;
+          margin: 0;
+          line-height: 1;
+          color: var(--text);
+        }
+        .rf-dash-sub {
+          margin: 8px 0 0;
+          font-size: 13px;
+          color: var(--text3);
+          max-width: 520px;
+          line-height: 1.5;
+        }
+        .rf-continue-card {
+          margin-bottom: 20px;
+          padding: 16px;
+          border-radius: 12px;
+          border-color: var(--gold2);
+          background: var(--gold-dim);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        .rf-continue-label {
+          font-size: 11px;
+          color: var(--gold2);
+          font-weight: 600;
+          letter-spacing: 1px;
+        }
+        .rf-continue-name {
+          font-size: 15px;
+          color: var(--text);
+          margin-top: 4px;
+        }
+        .rf-continue-progress {
+          font-size: 12px;
+          color: var(--text2);
+          margin-top: 6px;
+          line-height: 1.4;
+          max-width: 420px;
+        }
+        .rf-continue-meta {
+          font-size: 11px;
+          color: var(--text3);
+          margin-top: 6px;
+        }
+        .rf-continue-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .session-new-card {
+          min-height: 130px;
+          border-radius: 12px;
+          border: 1px dashed var(--border2);
+          background: var(--bg3);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-decoration: none;
+          transition: all 200ms ease;
+        }
+        .session-new-card__icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          border: 2px solid var(--gold);
+          color: var(--gold2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          margin-bottom: 8px;
+        }
+        .session-new-card__label {
+          font-size: 13px;
+          color: var(--text3);
+        }
+        .rf-session-card {
+          position: relative;
+          min-height: 200px;
+          border-radius: 12px;
+          border: 1px solid var(--border);
+          background: var(--bg3);
+          padding: 16px;
+          cursor: pointer;
+          transition: all 220ms ease;
+        }
+        .rf-session-card:hover {
           border-color: var(--border2) !important;
           transform: translateY(-2px);
           background: var(--bg4) !important;
           box-shadow: inset 0 2px 0 0 var(--gold);
         }
-        .session-card-spec:hover .btn.btn-ghost[title='Delete session'] {
+        .rf-session-card:hover .rf-session-delete {
           opacity: 1 !important;
+        }
+        .rf-session-badge {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          padding: 4px 8px;
+          border-radius: 4px;
+          max-width: 120px;
+          text-align: center;
+          line-height: 1.2;
+        }
+        .rf-session-badge--ok {
+          background: var(--green-dim);
+          color: var(--green);
+        }
+        .rf-session-badge--warn {
+          background: var(--gold-dim);
+          color: var(--gold2);
+        }
+        .rf-session-badge--neutral {
+          background: var(--bg5);
+          color: var(--text3);
+        }
+        .rf-session-delete {
+          position: absolute;
+          top: 40px;
+          right: 10px;
+          padding: 2px 6px;
+          opacity: 0;
+          font-size: 14px;
+        }
+        .rf-session-meta-row {
+          display: inline-block;
+          font-size: 10px;
+          color: var(--text3);
+          background: var(--bg2);
+          padding: 2px 8px;
+          border-radius: 4px;
+          margin-bottom: 8px;
+        }
+        .rf-session-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--text);
+          padding-right: 120px;
+        }
+        .rf-session-subline {
+          font-size: 11px;
+          color: var(--text3);
+          margin-top: 6px;
+        }
+        .rf-session-progress-hint {
+          font-size: 11px;
+          color: var(--text4);
+          margin-top: 8px;
+          line-height: 1.4;
+        }
+        .rf-session-dots {
+          display: flex;
+          gap: 4px;
+          margin-top: 10px;
+          align-items: center;
+        }
+        .rf-session-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          opacity: 1;
+        }
+        .rf-session-more {
+          font-size: 9px;
+          color: var(--text4);
+        }
+        .rf-session-time {
+          font-size: 10px;
+          color: var(--text4);
+          margin-top: 8px;
+        }
+        .rf-session-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 12px;
+        }
+        .btn-sm {
+          padding: 4px 10px;
+          font-size: 11px;
+        }
+        .rf-session-rename {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          align-items: center;
+          margin-top: 4px;
+        }
+        .rf-session-rename .input-spec {
+          flex: 1;
+          min-width: 140px;
+        }
+        .rf-dash-empty {
+          text-align: center;
+          color: var(--text3);
+          margin-top: 32px;
+          font-size: 14px;
+        }
+        .rf-intel-section {
+          margin-top: 28px;
+          padding: 18px;
+        }
+        .rf-intel-intro {
+          font-size: 12px;
+          color: var(--text3);
+          margin: 4px 0 0;
+        }
+        .rf-intel-empty {
+          color: var(--text3);
+          font-size: 13px;
+          margin: 12px 0 0;
+        }
+        .rf-intel-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 12px;
+        }
+        .rf-intel-item {
+          padding: 10px;
+          background: var(--bg4);
+          border-radius: 8px;
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+        }
+        .rf-intel-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          margin-top: 5px;
+          flex-shrink: 0;
+        }
+        .rf-intel-title {
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text);
+        }
+        .rf-intel-msg {
+          font-size: 10px;
+          color: var(--text3);
+          line-height: 1.5;
+          margin-top: 4px;
+        }
+        .rf-intel-refresh {
+          margin-top: 12px;
+          font-size: 11px;
         }
         .session-new-card:hover {
           border-color: var(--gold) !important;
           background: var(--gold-dim) !important;
         }
-        .session-new-card:hover span:last-child {
+        .session-new-card:hover .session-new-card__label {
           color: var(--gold2) !important;
         }
       `}</style>

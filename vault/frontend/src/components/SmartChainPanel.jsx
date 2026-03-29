@@ -15,6 +15,16 @@ function pickChain(override, preview) {
   return preview;
 }
 
+function splitProcessors(list) {
+  const vocal = [];
+  const mastering = [];
+  for (const p of list || []) {
+    if (String(p.id).startsWith('mstr_')) mastering.push(p);
+    else vocal.push(p);
+  }
+  return { vocal, mastering };
+}
+
 export default function SmartChainPanel({
   sessionId,
   vibe,
@@ -70,6 +80,8 @@ export default function SmartChainPanel({
 
   const chain = pickChain(chainOverride, preview);
   const processors = Array.isArray(chain?.processors) ? chain.processors : [];
+  const { vocal: vocalProcessors, mastering: masteringProcessors } = splitProcessors(processors);
+  const studioRoles = Array.isArray(chain?.studio_roles) ? chain.studio_roles : [];
   const fromTake = !!(chainOverride?.processors?.length);
   const tone = typeof chain?.tone === 'number' ? chain.tone : null;
 
@@ -118,6 +130,15 @@ export default function SmartChainPanel({
         </div>
         <p style={{ margin: '0 0 12px', fontSize: 10, color: 'var(--text3)', lineHeight: 1.45 }}>
           {statusLine}
+          {processors.length > 0 && (
+            <>
+              {' '}
+              <span className="mono" style={{ color: 'var(--gold-dim)' }}>
+                {processors.length} modules
+              </span>{' '}
+              (vocal chain + mastering lane) update together when you finish a take.
+            </>
+          )}
         </p>
 
         {loadErr && !fromTake && (
@@ -126,49 +147,145 @@ export default function SmartChainPanel({
           </p>
         )}
 
-        <ul
-          key={settleKey}
-          style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}
-        >
-          {processors.map((p) => (
-            <li key={p.id}>
-              <div
+        {studioRoles.length > 0 && (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: '10px 10px',
+              borderRadius: 6,
+              background: 'var(--bg3)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <div className="mono" style={{ fontSize: 9, color: 'var(--gold2)', marginBottom: 8 }}>
+              Session team
+            </div>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {studioRoles.map((r) => (
+                <li key={r.id}>
+                  <div style={{ fontSize: 10, color: 'var(--text2)', fontWeight: 600 }}>{r.title}</div>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', lineHeight: 1.4, marginTop: 2 }}>{r.blurb}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div key={settleKey} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {vocalProcessors.length > 0 && (
+            <>
+              <div className="mono" style={{ fontSize: 9, color: 'var(--text3)' }}>
+                Vocal chain (inserts + sends)
+              </div>
+              <ul
                 style={{
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: 0,
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  flexDirection: 'column',
                   gap: 8,
-                  fontSize: 10,
-                  color: 'var(--text2)',
                 }}
               >
-                <span>{p.name || p.id}</span>
-                <span className="mono" style={{ color: 'var(--text3)', minWidth: 36, textAlign: 'right' }}>
-                  {Math.round((p.value ?? 0) * 100)}%
-                </span>
+                {vocalProcessors.map((p) => (
+                  <li key={p.id}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 10,
+                        color: 'var(--text2)',
+                      }}
+                    >
+                      <span>{p.name || p.id}</span>
+                      <span className="mono" style={{ color: 'var(--text3)', minWidth: 36, textAlign: 'right' }}>
+                        {Math.round((p.value ?? 0) * 100)}%
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        height: 4,
+                        marginTop: 4,
+                        borderRadius: 2,
+                        background: 'var(--bg4)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${Math.round((p.value ?? 0) * 100)}%`,
+                          borderRadius: 2,
+                          background: 'linear-gradient(90deg, var(--gold-dim), var(--gold2))',
+                          transition: 'width 280ms ease',
+                        }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {masteringProcessors.length > 0 && (
+            <>
+              <div className="mono" style={{ fontSize: 9, color: 'var(--text3)', marginTop: 4 }}>
+                Mastering lane
               </div>
-              <div
+              <ul
                 style={{
-                  height: 4,
-                  marginTop: 4,
-                  borderRadius: 2,
-                  background: 'var(--bg4)',
-                  overflow: 'hidden',
+                  listStyle: 'none',
+                  margin: 0,
+                  padding: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
                 }}
               >
-                <div
-                  style={{
-                    height: '100%',
-                    width: `${Math.round((p.value ?? 0) * 100)}%`,
-                    borderRadius: 2,
-                    background: 'linear-gradient(90deg, var(--gold-dim), var(--gold2))',
-                    transition: 'width 280ms ease',
-                  }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+                {masteringProcessors.map((p) => (
+                  <li key={p.id}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 10,
+                        color: 'var(--text2)',
+                      }}
+                    >
+                      <span>{p.name || p.id}</span>
+                      <span className="mono" style={{ color: 'var(--text3)', minWidth: 36, textAlign: 'right' }}>
+                        {Math.round((p.value ?? 0) * 100)}%
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        height: 4,
+                        marginTop: 4,
+                        borderRadius: 2,
+                        background: 'var(--bg4)',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${Math.round((p.value ?? 0) * 100)}%`,
+                          borderRadius: 2,
+                          background: 'linear-gradient(90deg, rgba(120,140,200,0.35), var(--gold-dim))',
+                          transition: 'width 280ms ease',
+                        }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
 
         {!processors.length && !loadErr && (
           <p style={{ margin: 0, fontSize: 10, color: 'var(--text3)' }}>No chain data yet.</p>

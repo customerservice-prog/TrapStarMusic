@@ -5,15 +5,21 @@ test.describe('Session lifecycle', () => {
     const jsErrors = [];
     page.on('pageerror', (e) => jsErrors.push(e.message));
 
+    await page.goto('/');
+    const onboardingEnter = page.getByRole('button', { name: 'Enter RAP FACTORY' });
+    if (await onboardingEnter.isVisible().catch(() => false)) {
+      await onboardingEnter.click();
+    }
+
     await page.goto('/new');
     await expect(page.getByRole('heading', { name: 'NEW SESSION' })).toBeVisible();
 
     const name = `E2E ${Date.now()}`;
-    await page.getByPlaceholder(/DARK ZONE/i).fill(name);
+    await page.getByLabel('Session name').fill(name);
     await page.getByRole('button', { name: /Create Session/i }).click();
 
     await expect(page).toHaveURL(/\/studio\/[0-9a-f-]{36}/i, { timeout: 30_000 });
-    await expect(page.locator('button.record-btn-spec')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('button.rf-rec-btn')).toBeVisible({ timeout: 15_000 });
 
     expect(jsErrors, jsErrors.join('\n')).toEqual([]);
   });

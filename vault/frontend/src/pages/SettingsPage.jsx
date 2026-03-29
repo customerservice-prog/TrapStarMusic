@@ -22,8 +22,9 @@ export default function SettingsPage() {
     let latencyMs = null;
     let micPeak = null;
     try {
-      const ls = sessionStorage.getItem('vault_latency_ms');
-      const mp = sessionStorage.getItem('vault_mic_peak');
+      const ls =
+        sessionStorage.getItem('rapfactory_latency_ms') || sessionStorage.getItem('vault_latency_ms');
+      const mp = sessionStorage.getItem('rapfactory_mic_peak') || sessionStorage.getItem('vault_mic_peak');
       if (ls != null && ls !== '') latencyMs = Number(ls);
       if (mp != null && mp !== '') micPeak = Number(mp);
     } catch {
@@ -48,13 +49,13 @@ export default function SettingsPage() {
           id: 'mic_hint',
           label: 'Mic check',
           ok: true,
-          detail: 'Spend a minute in Studio so Rap Factory can learn your level — then run this again for a mic reading.',
+          detail: 'Spend a minute in Studio so RAP FACTORY can learn your level — then run this again for a mic reading.',
         });
       }
       setChecks([...r.checks, ...extra]);
     }
-    if (r.allPassed) notify({ title: 'Diagnostics', text: 'Core checks passed.' }, 'success');
-    else notify({ title: 'Diagnostics', text: 'Some items need attention below.' }, 'warn');
+    if (r.allPassed) notify({ title: 'Studio check', text: 'Core checks passed — you are good to record.' }, 'success');
+    else notify({ title: 'Studio check', text: 'Some items below need a quick fix before the next session.' }, 'warn');
   };
 
   const p = voiceProfile || {};
@@ -75,9 +76,15 @@ export default function SettingsPage() {
       >
         SETTINGS
       </h1>
+      <p style={{ fontSize: 13, color: 'var(--text3)', margin: '-8px 0 20px', maxWidth: 560, lineHeight: 1.5 }}>
+        Tell RAP FACTORY how you work so the booth chain reacts like a real session — not like generic software defaults.
+      </p>
 
       <section className="card-spec" style={{ marginBottom: 12 }}>
-        <div className="section-label">Audio Device</div>
+        <div className="section-label">Studio setup</div>
+        <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 0 }}>
+          What you are recording on — matches the Song tab in Studio. Phone, USB, or booth; the smart chain listens.
+        </p>
         <Row label="Microphone" hint="Used when you hit record in Studio">
           <select className="input-spec" style={{ maxWidth: 220 }} value={mic} onChange={(e) => setMic(e.target.value)}>
             <option value="default">System default</option>
@@ -103,23 +110,23 @@ export default function SettingsPage() {
       </section>
 
       <section className="card-spec" style={{ marginBottom: 12 }}>
-        <div className="section-label">Smart Engine</div>
+        <div className="section-label">Smart sound</div>
         <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 0 }}>
-          Same switches as Studio — they stay in sync for this browser.
+          How hard the built-in producer pushes polish — synced with Studio for this browser.
         </p>
-        <Row label="Pro Sound Mode" hint="Full polish chain">
+        <Row label="Pro sound mode" hint="Full polish chain">
           <Toggle on={!!engineToggles.proSound} onChange={(v) => setEngineToggle('proSound', v)} ariaLabel="Pro sound" />
         </Row>
-        <Row label="Auto-Tune" hint="Tune assist in the smart chain">
+        <Row label="Auto-tune" hint="How much tuning the chain usually applies">
           <Toggle on={!!engineToggles.autoTune} onChange={(v) => setEngineToggle('autoTune', v)} ariaLabel="Auto-Tune" />
         </Row>
-        <Row label="Beat Awareness" hint="Chain reacts to the beat profile">
+        <Row label="Beat awareness" hint="Chain reacts to the beat you loaded">
           <Toggle on={!!engineToggles.beatAwareness} onChange={(v) => setEngineToggle('beatAwareness', v)} ariaLabel="Beat awareness" />
         </Row>
         <Row label="Auto-Group Layers" hint="Stack suggestions for doubles and adlibs">
           <Toggle on={!!engineToggles.autoGroup} onChange={(v) => setEngineToggle('autoGroup', v)} ariaLabel="Auto-Group" />
         </Row>
-        <Row label="Auto-Save Frequency" hint="Snapshots while you work">
+        <Row label="Auto-save" hint="Session snapshots while you work">
           <select className="input-spec" style={{ maxWidth: 200 }} value={autosave} onChange={(e) => setAutosave(e.target.value)}>
             <option value="30">Every 30 seconds</option>
             <option value="60">Every 60 seconds</option>
@@ -144,10 +151,11 @@ export default function SettingsPage() {
       </section>
 
       <section className="card-spec" style={{ marginBottom: 12 }}>
-        <div className="section-label">My Sound Profile</div>
-        <p style={{ fontSize: 13, color: 'var(--text3)', marginTop: 0 }}>
-          Trained on <span className="mono">{p.sessions_trained ?? 0}</span> sessions and{' '}
-          <span className="mono">{p.takes_trained ?? 0}</span> takes.
+        <div className="section-label">My sound profile</div>
+        <p style={{ fontSize: 13, color: 'var(--text3)', marginTop: 0, lineHeight: 1.5 }}>
+          Built from your sessions — this is how your voice usually likes to be treated. Trained on{' '}
+          <span className="mono">{p.sessions_trained ?? 0}</span> sessions and <span className="mono">{p.takes_trained ?? 0}</span>{' '}
+          takes.
         </p>
         {[
           ['tune_strength', 'How tuned my vocals sound'],
@@ -176,9 +184,12 @@ export default function SettingsPage() {
       </section>
 
       <section className="card-spec" style={{ marginBottom: 12 }}>
-        <div className="section-label">Device Check</div>
+        <div className="section-label">Diagnostics</div>
+        <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 0 }}>
+          Spend a minute in Studio first for mic level — then run this for a fuller signal readout.
+        </p>
         <button type="button" className="btn btn-primary" onClick={runDiag}>
-          Run Diagnostics
+          Run studio diagnostics
         </button>
         <ul style={{ listStyle: 'none', padding: 0, marginTop: 16 }}>
           {checks.map((c) => (
@@ -196,7 +207,45 @@ export default function SettingsPage() {
       <section className="card-spec">
         <div className="section-label">Advanced</div>
         <p style={{ fontSize: 12, color: 'var(--text3)' }}>Maintenance tools for troubleshooting.</p>
-        <button type="button" className="btn btn-ghost" style={{ marginTop: 10, marginRight: 8 }} onClick={() => notify({ title: 'Cache', text: 'Cleared local UI cache.' }, 'success')}>
+        <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              try {
+                localStorage.removeItem('rapfactory_onboarding_dismissed_v1');
+              } catch {
+                /* */
+              }
+              window.dispatchEvent(new CustomEvent('rapfactory-open-onboarding', { detail: { screen: 'tour' } }));
+            }}
+          >
+            Replay quick tour
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              try {
+                localStorage.removeItem('rapfactory_onboarding_dismissed_v1');
+              } catch {
+                /* */
+              }
+              window.dispatchEvent(new CustomEvent('rapfactory-open-onboarding', { detail: { screen: 'welcome' } }));
+            }}
+          >
+            Show welcome intro
+          </button>
+        </div>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ marginTop: 10, marginRight: 8 }}
+          onClick={() => {
+            clearVocalDecodeCacheGlobal();
+            notify({ title: 'Cache', text: 'Cleared decoded vocal buffers (Studio will re-fetch takes on next play).' }, 'success');
+          }}
+        >
           Clear Cache
         </button>
         <button type="button" className="btn btn-ghost" onClick={() => notify({ title: 'Logs', text: 'Logs export coming soon.' }, 'info')}>
@@ -207,7 +256,7 @@ export default function SettingsPage() {
       <section className="card-spec" style={{ marginTop: 12 }}>
         <div className="section-label">Microphone</div>
         <p style={{ fontSize: 13, color: 'var(--text3)', lineHeight: 1.5 }}>
-          If the browser blocked the mic: use the lock or site settings icon in the address bar → set Microphone to Allow → reload Rap Factory.
+          If the browser blocked the mic: use the lock or site settings icon in the address bar → set Microphone to Allow → reload RAP FACTORY.
           On Windows, check Settings → Privacy → Microphone for desktop access.
         </p>
       </section>

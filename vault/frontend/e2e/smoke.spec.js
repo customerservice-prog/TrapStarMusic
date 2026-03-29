@@ -6,7 +6,7 @@ test.describe('Dashboard', () => {
     page.on('pageerror', (e) => jsErrors.push(e.message));
 
     await page.goto('/');
-    await expect(page).toHaveTitle(/Rap Factory/i);
+    await expect(page).toHaveTitle(/RAP FACTORY/i);
     await expect(page.getByRole('heading', { name: 'YOUR SESSIONS' })).toBeVisible();
     await expect(page.locator('a.btn.btn-primary[href="/new"]')).toBeVisible();
 

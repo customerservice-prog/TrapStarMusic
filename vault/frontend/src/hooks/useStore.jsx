@@ -16,11 +16,12 @@ import {
 
 const StoreContext = createContext(null);
 
-const PENDING_KEY = 'vault_pending_upload';
+const PENDING_KEY = 'rapfactory_pending_upload';
 
 function loadPending() {
   try {
-    const raw = localStorage.getItem(PENDING_KEY);
+    let raw = localStorage.getItem(PENDING_KEY);
+    if (!raw) raw = localStorage.getItem('vault_pending_upload');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -51,6 +52,8 @@ const initial = {
     beatAwareness: true,
     autoTune: true,
     autoGroup: true,
+    /** When on, Studio playback runs the Web Audio chain from each take’s chain_snapshot. */
+    smartChainPlayback: true,
   },
   decisions: [],
   recentDecisionsGlobal: [],
@@ -61,12 +64,13 @@ const initial = {
   voiceProfile: null,
 };
 
-const ENGINE_TOGGLES_KEY = 'vault_engine_toggles';
+const ENGINE_TOGGLES_KEY = 'rapfactory_engine_toggles';
 
 function readEngineTogglesFromStorage() {
   if (typeof localStorage === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(ENGINE_TOGGLES_KEY);
+    let raw = localStorage.getItem(ENGINE_TOGGLES_KEY);
+    if (!raw) raw = localStorage.getItem('vault_engine_toggles');
     if (!raw) return null;
     const o = JSON.parse(raw);
     if (!o || typeof o !== 'object') return null;
@@ -212,11 +216,11 @@ export function StoreProvider({ children }) {
   const checkBackend = useCallback(async () => {
     try {
       const h = await api.health();
-      const ok = h.ok && h.data?.ok;
+      const ok = h.ok && h.data?.healthy === true;
       dispatch({
         type: 'SET_BACKEND',
         ok,
-        message: ok ? null : 'Backend offline — make sure the server is running (port 3001).',
+        message: ok ? null : 'RAP FACTORY backend offline — start the server (default port 3001).',
       });
       return ok;
     } catch {
@@ -446,7 +450,7 @@ export function StoreProvider({ children }) {
   );
 
   const uploadTakeWithRetry = useCallback(
-    async (trackId, blob, metadata, sessionId, filename) => {
+    async (trackId, blob, metadata, sessionId, filename, opts = {}) => {
       try {
         const r = await api.uploadTake(trackId, blob, metadata, filename);
         if (r.error) throw new Error(r.error);
@@ -456,7 +460,16 @@ export function StoreProvider({ children }) {
         await clearPendingTakeRecord().catch(() => {});
         await loadTracks(sessionId);
         snapshot(sessionId, 'post-take').catch(() => {});
-        notify('Take processed — chain updated.', 'success');
+        const layer = opts.layerLabel;
+        notify(
+          layer
+            ? {
+                title: `${layer} take saved`,
+                text: 'Smart Engine updated this layer. Auto-save will keep the session current.',
+              }
+            : { title: 'Take saved', text: 'Smart Engine updated the chain for this session.' },
+          'success'
+        );
         try {
           const p = await api.getVoiceProfile();
           if (!p.error) dispatch({ type: 'SET_VOICE_PROFILE', profile: p });
@@ -552,7 +565,7 @@ export function StoreProvider({ children }) {
         if (r.downloadUrl) {
           const name = r.suggestedFilename || r.downloadUrl.split('/').pop() || 'rap-factory-export.wav';
           api.triggerBrowserDownload(r.downloadUrl, name);
-          notify('Export downloaded.', 'success');
+          notify({ title: 'Export ready', text: 'Your bounce is in your downloads folder.' }, 'success');
           return r;
         }
         if (r.stems?.length) {

@@ -65,18 +65,18 @@ export default function ArrangementRuler({
     return out;
   }, [totalBars]);
 
-  const vault = variant === 'vault';
+  const rf = variant === 'rf';
 
   return (
     <div
       ref={ref}
-      className={`arrangement-ruler${vault ? ' arrangement-ruler--vault' : ''}`}
-      style={vault ? { position: 'relative' } : undefined}
+      className={`arrangement-ruler${rf ? ' arrangement-ruler--rf' : ''}`}
+      style={rf ? { position: 'relative' } : undefined}
       onClick={click}
       role="presentation"
       aria-hidden
     >
-      {!vault && (
+      {!rf && (
         <div
           className="arrangement-ruler__grid"
           style={{
@@ -84,8 +84,8 @@ export default function ArrangementRuler({
           }}
         />
       )}
-      {vault && <div className="arrangement-ruler__vault-glow" />}
-      {!vault && (
+      {rf && <div className="arrangement-ruler__rf-glow" />}
+      {!rf && (
         <div className="arrangement-ruler__labels">
           {labelBars.map((n) => (
             <span
@@ -98,7 +98,7 @@ export default function ArrangementRuler({
           ))}
         </div>
       )}
-      <div className={`arrangement-ruler__playhead${vault ? ' arrangement-ruler__playhead--vault' : ''}`} style={{ left: `${playPct}%` }} />
+      <div className={`arrangement-ruler__playhead${rf ? ' arrangement-ruler__playhead--rf' : ''}`} style={{ left: `${playPct}%` }} />
     </div>
   );
 }

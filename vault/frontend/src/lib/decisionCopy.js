@@ -4,30 +4,31 @@ export function decisionToCopy(row) {
   if (t === 'beat_analysis') {
     return {
       title: 'Beat profile locked',
-      message: `Rap Factory heard this as ${p.character || 'balanced'} with ${p.mid_density || 'medium'} mids and ${p.bass_intensity || 'solid'} low end — the chain is weighted so you sit in the pocket, not on top of the beat.`,
+      message: `Vocals will sit tighter and more upfront — we heard this beat as ${p.character || 'balanced'} with ${p.mid_density || 'medium'} mids and ${p.bass_intensity || 'solid'} low end.`,
     };
   }
   if (t === 'vocal_classification') {
     return {
-      title: 'Vocal layer classified',
-      message: `This take reads as a ${p.layer || 'main'} layer with energy mapped for smart leveling — doubles and adlibs get width and space automatically.`,
+      title: 'Layer dialed for the stack',
+      message: `This take reads as ${p.layer || 'lead'} — leveling and width adjust so doubles and adlibs wrap the main without you touching a fader.`,
     };
   }
   if (t === 'chain_build') {
     return {
-      title: 'Processing chain built',
-      message: 'Tune, compression, and space were shaped for this beat and your sound profile — no manual routing required.',
+      title: 'Session chain is live',
+      message:
+        'Tune, compression, tone, and space are set for this beat and your mic — major-booth polish, zero DAW homework.',
     };
   }
   if (t === 'auto_group') {
     return {
-      title: 'Layer grouping',
-      message: 'Rap Factory suggested stack placement so leads stay forward and textures wrap the sides.',
+      title: 'Stack spacing suggested',
+      message: 'Adlib spacing and width are nudged so your last hook breathes like a finished session, not a rough bounce.',
     };
   }
   return {
-    title: t.replace(/_/g, ' ') || 'Engine note',
-    message: 'Smart Engine updated processing for this session.',
+    title: (t && String(t).replace(/_/g, ' ')) || 'Studio note',
+    message: 'The built-in producer updated something in your session — keep recording when you are ready.',
   };
 }
 

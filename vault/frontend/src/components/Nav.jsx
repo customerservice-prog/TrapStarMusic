@@ -1,6 +1,5 @@
 import { useNavigate, useLocation, useMatch } from 'react-router-dom';
 import { useStore } from '../hooks/useStore.jsx';
-import BrandLogo from './BrandLogo.jsx';
 
 export default function Nav() {
   const nav = useNavigate();
@@ -28,8 +27,7 @@ export default function Nav() {
   return (
     <header className="nav-root">
       <button type="button" className="nav-logo nav-logo--brand" onClick={() => nav('/')}>
-        <BrandLogo variant="nav" />
-        <span className="nav-logo__wordmark">Rap Factory</span>
+        <span className="nav-logo__wordmark">RAP FACTORY</span>
       </button>
       <nav className="nav-tabs" aria-label="Main">
         {tab('/', 'Sessions', loc.pathname === '/' || loc.pathname === '/new')}

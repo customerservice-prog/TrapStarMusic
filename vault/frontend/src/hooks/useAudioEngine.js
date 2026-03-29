@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyEdgeFadesToBlob } from '../lib/wav.js';
 import { fetchArrayBuffer } from '../lib/api.js';
+import {
+  parseChainSnapshot,
+  chainHasSmartPlayback,
+  connectSmartVocalPlayback,
+  tuneAssistDetuneCents,
+} from '../lib/vocalChainAudio.js';
+import { registerVocalDecodeCache } from '../lib/vocalDecodeCacheRegistry.js';
 
 const PUNCH_EDGE_FADE_SEC = 0.12;
 const MAX_VOCAL_BUFFERS = 8;
@@ -38,7 +45,7 @@ export function useAudioEngine() {
   const chunksRef = useRef([]);
   const punchLoopRef = useRef(0);
   const recordMimeRef = useRef('');
-  /** @type {React.MutableRefObject<Record<string, { takeId: string; buffer: AudioBuffer }>>} */
+  /** @type {React.MutableRefObject<Record<string, { takeId: string; url: string; buffer: AudioBuffer }>>} */
   const vocalBufferCacheRef = useRef({});
   /** @type {React.MutableRefObject<Record<string, { stop: () => void }>>} */
   const vocalPlaybackRef = useRef({});
@@ -60,6 +67,15 @@ export function useAudioEngine() {
   const [monitoringOn, setMonitoringOn] = useState(true);
   const [micHardwareLost, setMicHardwareLost] = useState(false);
   const [beatVolume, setBeatVolumeState] = useState(1);
+
+  useEffect(() => {
+    registerVocalDecodeCache(vocalBufferCacheRef);
+    return () => registerVocalDecodeCache(null);
+  }, []);
+
+  const clearVocalDecodeCache = useCallback(() => {
+    vocalBufferCacheRef.current = {};
+  }, []);
 
   const ensureCtx = useCallback(() => {
     if (!ctxRef.current) {
@@ -508,6 +524,9 @@ export function useAudioEngine() {
       eqMid = 0.5,
       eqHigh = 0.5,
       flexDetuneCents = 0,
+      chainSnapshot = null,
+      /** When false, hear raw take + strip EQ only (Settings / Smart sound). */
+      smartPlaybackEnabled = true,
       onEnded,
     }) => {
       const ctx = ensureCtx();
@@ -518,7 +537,7 @@ export function useAudioEngine() {
 
       let buffer;
       const cache = vocalBufferCacheRef.current[trackId];
-      if (cache && cache.takeId === takeId && cache.buffer) {
+      if (cache && cache.takeId === takeId && cache.url === url && cache.buffer) {
         buffer = cache.buffer;
       } else {
         const ab = await fetchArrayBuffer(url);
@@ -528,7 +547,7 @@ export function useAudioEngine() {
           const msg = e?.message || 'Could not decode this take.';
           throw new Error(msg);
         }
-        vocalBufferCacheRef.current[trackId] = { takeId, buffer };
+        vocalBufferCacheRef.current[trackId] = { takeId, url, buffer };
         const keys = Object.keys(vocalBufferCacheRef.current);
         if (keys.length > MAX_VOCAL_BUFFERS) {
           for (let i = 0; i < keys.length - MAX_VOCAL_BUFFERS; i++) {
@@ -542,42 +561,69 @@ export function useAudioEngine() {
       const inner = buffer.duration - ts - te;
       const playDur = Math.max(0.05, Math.min(inner, buffer.duration - ts));
 
-      const low = ctx.createBiquadFilter();
-      low.type = 'lowshelf';
-      low.frequency.value = 130;
-      low.gain.value = (Number(eqLow) - 0.5) * 20;
-
-      const mid = ctx.createBiquadFilter();
-      mid.type = 'peaking';
-      mid.frequency.value = 1200;
-      mid.Q.value = 0.9;
-      mid.gain.value = (Number(eqMid) - 0.5) * 14;
-
-      const high = ctx.createBiquadFilter();
-      high.type = 'highshelf';
-      high.frequency.value = 9000;
-      high.gain.value = (Number(eqHigh) - 0.5) * 14;
-
-      const panner = ctx.createStereoPanner();
-      panner.pan.value = Math.max(-1, Math.min(1, Number(pan) || 0));
-
-      const gain = ctx.createGain();
-      gain.gain.value = muted ? 0 : Math.max(0, Math.min(1, volume));
-
       const source = ctx.createBufferSource();
       source.buffer = buffer;
+
+      const parsedChain = parseChainSnapshot(chainSnapshot);
+      const useSmartChain =
+        smartPlaybackEnabled !== false && chainHasSmartPlayback(parsedChain);
+      const tuneAssist = useSmartChain ? tuneAssistDetuneCents(parsedChain.processors) : 0;
       try {
-        source.detune.value = Math.max(-1200, Math.min(1200, Number(flexDetuneCents) || 0));
+        const detune = Math.max(
+          -1200,
+          Math.min(1200, (Number(flexDetuneCents) || 0) + tuneAssist)
+        );
+        source.detune.value = detune;
       } catch (_) {}
 
-      source.connect(low);
-      low.connect(mid);
-      mid.connect(high);
-      high.connect(panner);
-      panner.connect(gain);
-      gain.connect(masterIn);
+      let nodes;
+      if (useSmartChain) {
+        nodes = [
+          source,
+          ...connectSmartVocalPlayback({
+            ctx,
+            source,
+            masterIn,
+            chainSnapshot: parsedChain,
+            eqLow,
+            eqMid,
+            eqHigh,
+            pan,
+            volume,
+            muted,
+          }),
+        ];
+      } else {
+        const low = ctx.createBiquadFilter();
+        low.type = 'lowshelf';
+        low.frequency.value = 130;
+        low.gain.value = (Number(eqLow) - 0.5) * 20;
 
-      const nodes = [source, low, mid, high, panner, gain];
+        const mid = ctx.createBiquadFilter();
+        mid.type = 'peaking';
+        mid.frequency.value = 1200;
+        mid.Q.value = 0.9;
+        mid.gain.value = (Number(eqMid) - 0.5) * 14;
+
+        const high = ctx.createBiquadFilter();
+        high.type = 'highshelf';
+        high.frequency.value = 9000;
+        high.gain.value = (Number(eqHigh) - 0.5) * 14;
+
+        const panner = ctx.createStereoPanner();
+        panner.pan.value = Math.max(-1, Math.min(1, Number(pan) || 0));
+
+        const gain = ctx.createGain();
+        gain.gain.value = muted ? 0 : Math.max(0, Math.min(1, volume));
+
+        source.connect(low);
+        low.connect(mid);
+        mid.connect(high);
+        high.connect(panner);
+        panner.connect(gain);
+        gain.connect(masterIn);
+        nodes = [source, low, mid, high, panner, gain];
+      }
       let finished = false;
       const finish = () => {
         if (finished) return;
@@ -729,6 +775,7 @@ export function useAudioEngine() {
     beatBuffer: beatBufferState,
     beatDecodeError,
     playVocalTrack,
+    clearVocalDecodeCache,
     stopVocalTrack,
     stopAllVocalTracks,
     estimateMonitorLatencyMs,

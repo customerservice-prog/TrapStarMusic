@@ -1,49 +1,59 @@
 const BASE = '';
 
+/**
+ * Parses JSON API responses. Supports `{ ok, data }` / `{ ok, error }` envelope from the RAP FACTORY backend.
+ * On success returns `data` only. On failure returns `{ error, code?, ...details }`.
+ */
 async function parseJson(res) {
   const text = await res.text();
-  let data = {};
+  let parsed = {};
   if (text) {
     try {
-      const parsed = JSON.parse(text);
-      if (parsed != null && typeof parsed === 'object') {
-        data = parsed;
-      } else if (parsed === null) {
-        data = {};
-      } else {
-        data = { error: 'Unexpected response' };
-      }
+      const p = JSON.parse(text);
+      parsed = p != null && typeof p === 'object' ? p : { _primitive: p };
     } catch {
-      data = { error: text.length > 280 ? `${text.slice(0, 280)}…` : text || 'Invalid response' };
+      return { error: text.length > 280 ? `${text.slice(0, 280)}…` : text || 'Invalid response' };
     }
   }
+
+  if (parsed && typeof parsed === 'object' && parsed.ok === true && Object.prototype.hasOwnProperty.call(parsed, 'data')) {
+    return parsed.data;
+  }
+
+  if (parsed && typeof parsed === 'object' && parsed.ok === false && parsed.error) {
+    const e = parsed.error;
+    const msg = typeof e === 'string' ? e : e.message || 'Request failed';
+    const code = typeof e === 'object' && e.code ? e.code : undefined;
+    const nested = typeof e === 'object' && e.details && typeof e.details === 'object' ? e.details : {};
+    const fromData = parsed.data && typeof parsed.data === 'object' ? parsed.data : {};
+    return { error: msg, code, ...nested, ...fromData };
+  }
+
   if (!res.ok) {
     const hasMessage =
-      data &&
-      typeof data === 'object' &&
-      !Array.isArray(data) &&
-      (data.error != null ||
-        typeof data.message === 'string' ||
-        typeof data.detail === 'string');
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      (parsed.error != null || typeof parsed.message === 'string' || typeof parsed.detail === 'string');
     if (!hasMessage) {
       const hint =
-        data && typeof data === 'object' && !Array.isArray(data) && typeof data.detail === 'string'
-          ? data.detail
-          : data && typeof data === 'object' && !Array.isArray(data) && typeof data.message === 'string'
-            ? data.message
+        parsed && typeof parsed === 'object' && typeof parsed.detail === 'string'
+          ? parsed.detail
+          : parsed && typeof parsed === 'object' && typeof parsed.message === 'string'
+            ? parsed.message
             : `Something went wrong (${res.status})`;
-      data =
-        data && typeof data === 'object' && !Array.isArray(data)
-          ? { ...data, error: hint }
-          : { error: hint };
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? { ...parsed, error: hint } : { error: hint };
     }
   }
-  return data;
+
+  return parsed;
 }
 
 export async function health() {
   const res = await fetch(`${BASE}/api/health`);
-  return { ok: res.ok, status: res.status, data: res.ok ? await parseJson(res) : await parseJson(res) };
+  const data = await parseJson(res);
+  const healthy = res.ok && data && data.healthy === true && !data.error;
+  return { ok: healthy, status: res.status, data };
 }
 
 export async function listSessions() {
@@ -168,7 +178,6 @@ export function trackAudioUrl(trackId) {
   return `${BASE}/api/tracks/${trackId}/audio`;
 }
 
-/** Binary GET for Web Audio decode — all non-JSON fetches go through api.js. */
 export async function fetchArrayBuffer(url) {
   const res = await fetch(url);
   if (!res.ok) {
@@ -228,7 +237,6 @@ export async function exportSession(sessionId, mode = 'acapella') {
   return parseJson(res);
 }
 
-/** Same-origin download trigger (WAV / ZIP from export, or track stem). */
 export function triggerBrowserDownload(url, filename) {
   const a = document.createElement('a');
   a.href = url;
